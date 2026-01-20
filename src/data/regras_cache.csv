@@ -1,0 +1,28 @@
+Status,Fluxo,Significado,Cor
+Delivered,OFFLINE,Pedido entregue ao comprador.,Cinza
+Lost,OFFLINE,Status para pacote perdido. Status finalizador,Cinza
+Cancelled,OFFLINE,O pedido foi cancelado pelo comprador através da plataforma da Shopee. Status finalizador.,Cinza
+Damaged,OFFLINE,Status para pacote danificado/avariado,Cinza
+Liquidating,OFFLINE,Liquidação para ir para o salvados,Cinza
+Liquidate_Received,OFFLINE,Liquidation recebido com status atual do SOC enviado.,Cinza
+Liquidate_LHTransporting,OFFLINE,Pacote que está em transporte do Hub para SOC.,Cinza
+Return_LMHub_Returned,OFFLINE,Pedido entregue ao Seller via motorista de rota,Cinza
+Return_LMHub_TO_Disposal,OFFLINE,"Pedido que o Seller NÃO foi retirar/coletar dentro do prazo no ponto de coleta.
+Esse status é alterado automaticamente pelo sistema, com base na data prazo de coleta.",Cinza
+Disposed,OFFLINE,Pedido descartado,Cinza
+Return_Failed,OFFLINE,Falha na devolução do pacote,Cinza
+Return_SP_Collection_Collected,OFFLINE,,Cinza
+3PL_Returned,OFFLINE,,Cinza
+SOC_Received,ONLINE,Pedido online recebido no SOC,Cinza
+Return_LMHub_Received,ONLINE,Status para iniciar o processo de reversa,Cinza
+Return_SOC_Received,ONLINE,Status para iniciar o processo de reversa,Cinza
+SOC_Packing,ONLINE,Pedido so embalado e consolidado fisicamente em uma GAIOLA/GAYLORD/SACA,Cinza
+SOC_Packed,ONLINE,Processo de packing finalizado (já embalado) e associado a uma TO (Master),Cinza
+Missing,ONLINE,"Pacote que é possível perda, porém não é status finalizador. Esse status se dá conta do processo de Parcel Sweeper.
+(Pode ser porque o Parcel mapeou e o Hub não bipou)",Cinza
+SOC_LHTransporting,ONLINE,Pedido associado a uma TO e despachado da origem para destino.,Cinza
+SOC_LHTransported,ONLINE,Pedido associado a uma TO e a TO foi recebida sistemicamente no HUB de destino.,Cinza
+Return_Collection_Reminder_1,Quarentena,Primeira notificação informando ao Seller sobre a necessidade da retirada dos pacotes no ponto de coleta.,Cinza
+LMHub_Received,Quarentena,"Pedido recebido no HUB, após a bipada da etiquetagem ou proveniente de backlog.",Cinza
+Delivering,Quarentena,Pedido em processo de entrega,Cinza
+On Hold,Quarentena,"Pedido saiu para entrega, mas não foi entregue.",Cinza
