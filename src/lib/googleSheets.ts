@@ -324,6 +324,7 @@ export async function getAllFifoData(page: number = 1, pageSize: number = 15): P
     total: number;
     totalPages: number;
     stats: { total: number; unlinked: number; unique: number; duplicates: number };
+    exceeded: boolean;
 }> {
     if (!process.env.GOOGLE_SHEET_ID) {
         const mockData: FifoData[] = [];
@@ -341,7 +342,8 @@ export async function getAllFifoData(page: number = 1, pageSize: number = 15): P
             data: mockData.slice(start, start + pageSize),
             total: mockData.length,
             totalPages: Math.ceil(mockData.length / pageSize),
-            stats: { total: mockData.length, unlinked, unique: mockData.length, duplicates: 0 }
+            stats: { total: mockData.length, unlinked, unique: mockData.length, duplicates: 0 },
+            exceeded: false
         };
     }
 
@@ -367,6 +369,9 @@ export async function getAllFifoData(page: number = 1, pageSize: number = 15): P
     const uniqueCount = qrcodeCounts.size;
     const duplicateCount = total - uniqueCount;
 
+    // Verificar limite
+    const exceeded = total > MAX_QRCODES;
+
     const start = (page - 1) * pageSize;
     const paginatedData = allData.slice(start, start + pageSize);
 
@@ -374,7 +379,8 @@ export async function getAllFifoData(page: number = 1, pageSize: number = 15): P
         data: paginatedData,
         total,
         totalPages: Math.ceil(total / pageSize),
-        stats: { total, unlinked, unique: uniqueCount, duplicates: duplicateCount }
+        stats: { total, unlinked, unique: uniqueCount, duplicates: duplicateCount },
+        exceeded
     };
 }
 
@@ -388,4 +394,44 @@ export async function getFifoByUniqueId(uniqueId: string) {
         };
     }
     return null;
+}
+
+// ========================
+// AUTENTICAÇÃO FIFO
+// ========================
+
+export const MAX_QRCODES = 5000;
+
+/**
+ * Valida a senha de acesso ao módulo FIFO
+ * Busca na planilha FIFO_AUTH, coluna PASSWORD
+ */
+export async function validateFifoPassword(password: string): Promise<boolean> {
+    // Mock: se não tiver credenciais, aceita qualquer senha
+    if (!process.env.GOOGLE_SHEET_ID) {
+        return password === 'demo';
+    }
+
+    try {
+        await loadSheet();
+        const sheet = doc.sheetsByTitle['FIFO_AUTH'];
+
+        if (!sheet) {
+            console.error('Planilha FIFO_AUTH não encontrada');
+            return false;
+        }
+
+        const rows = await sheet.getRows();
+
+        // Verifica se a senha existe em alguma linha da coluna PASSWORD
+        const validPassword = rows.some((row: any) => {
+            const storedPassword = row.get('PASSWORD') || '';
+            return storedPassword === password;
+        });
+
+        return validPassword;
+    } catch (error) {
+        console.error('Erro ao validar senha FIFO:', error);
+        return false;
+    }
 }

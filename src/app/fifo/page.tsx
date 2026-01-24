@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { ArrowLeft, Search, Printer, Loader2, Plus, Link2, Package, RefreshCw, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { ArrowLeft, Search, Printer, Loader2, Plus, Link2, Package, RefreshCw, ChevronLeft, ChevronRight, Trash2, Lock, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { LabelWrapper } from '@/components/LabelAssets';
 
@@ -16,6 +16,13 @@ type FifoData = {
 type TabType = 'buscar' | 'gerar' | 'lote' | 'vincular';
 
 export default function FifoPage() {
+    // === AUTENTICAÇÃO ===
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [authPassword, setAuthPassword] = useState('');
+    const [authError, setAuthError] = useState('');
+    const [authLoading, setAuthLoading] = useState(false);
+    const [checkingAuth, setCheckingAuth] = useState(true);
+
     const [activeTab, setActiveTab] = useState<TabType>('buscar');
 
     // === TABELA ESPELHO ===
@@ -24,6 +31,11 @@ export default function FifoPage() {
     const [tableTotalPages, setTableTotalPages] = useState(1);
     const [tableStats, setTableStats] = useState({ total: 0, unlinked: 0, unique: 0, duplicates: 0 });
     const [loadingTable, setLoadingTable] = useState(false);
+    const [exceeded, setExceeded] = useState(false);
+    const [selectedFromTable, setSelectedFromTable] = useState<FifoData | null>(null);
+
+    // === BARRA DE PROGRESSO ===
+    const [generateProgress, setGenerateProgress] = useState(0);
 
     // === BUSCAR ===
     const [searchId, setSearchId] = useState('');
@@ -71,7 +83,7 @@ export default function FifoPage() {
         setLoadingLinkTable(true);
         try {
             // Usa pageSize alto para trazer tudo, na API real filtraria melhor
-            const res = await fetch(`/api/fifo/list?page=1&pageSize=1000`);
+            const res = await fetch(`/api/fifo/list?page=1&pageSize=5000&t=${Date.now()}`);
             const json = await res.json();
             const all: FifoData[] = json.data || [];
 
@@ -128,12 +140,13 @@ export default function FifoPage() {
     const loadTableData = async (page: number = 1) => {
         setLoadingTable(true);
         try {
-            const res = await fetch(`/api/fifo/list?page=${page}&pageSize=15`);
+            const res = await fetch(`/api/fifo/list?page=${page}&pageSize=15&t=${Date.now()}`);
             const json = await res.json();
             setTableData(json.data || []);
             setTableTotalPages(json.totalPages || 1);
             setTableStats(json.stats || { total: 0, unlinked: 0, unique: 0, duplicates: 0 });
             setTablePage(page);
+            setExceeded(json.exceeded || false);
         } catch {
             console.error('Erro ao carregar tabela');
         } finally {
@@ -141,9 +154,47 @@ export default function FifoPage() {
         }
     };
 
+    // Verificar autenticação no sessionStorage ao carregar
     useEffect(() => {
-        loadTableData(1);
+        const storedAuth = sessionStorage.getItem('fifo_auth');
+        if (storedAuth === 'true') {
+            setIsAuthenticated(true);
+        }
+        setCheckingAuth(false);
     }, []);
+
+    // Carregar dados apenas se autenticado
+    useEffect(() => {
+        if (isAuthenticated) {
+            loadTableData(1);
+        }
+    }, [isAuthenticated]);
+
+    // Autenticar
+    const handleAuth = async () => {
+        if (!authPassword.trim()) return;
+        setAuthLoading(true);
+        setAuthError('');
+
+        try {
+            const res = await fetch('/api/fifo/auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: authPassword })
+            });
+            const json = await res.json();
+            if (json.valid) {
+                setIsAuthenticated(true);
+                sessionStorage.setItem('fifo_auth', 'true');
+            } else {
+                setAuthError('Senha incorreta.');
+            }
+        } catch {
+            setAuthError('Erro de conexão.');
+        } finally {
+            setAuthLoading(false);
+        }
+    };
 
     // === BUSCAR ETIQUETA ===
     const handleSearch = async () => {
@@ -172,6 +223,15 @@ export default function FifoPage() {
         if (generateQty < 1 || generateQty > 100) return;
         setGenerating(true);
         setGeneratedLabels([]);
+        setGenerateProgress(0);
+
+        // Simular progresso enquanto aguarda a API
+        const progressInterval = setInterval(() => {
+            setGenerateProgress(prev => {
+                if (prev >= 90) return prev;
+                return prev + Math.random() * 15;
+            });
+        }, 200);
 
         try {
             const res = await fetch('/api/fifo/create', {
@@ -180,14 +240,21 @@ export default function FifoPage() {
                 body: JSON.stringify({ quantity: generateQty })
             });
             const json = await res.json();
+            clearInterval(progressInterval);
+            setGenerateProgress(100);
+
             if (json.success) {
                 setGeneratedLabels(json.data);
                 loadTableData(1);
             }
         } catch {
+            clearInterval(progressInterval);
             alert('Erro ao gerar etiquetas.');
         } finally {
-            setGenerating(false);
+            setTimeout(() => {
+                setGenerating(false);
+                setGenerateProgress(0);
+            }, 500);
         }
     };
 
@@ -292,6 +359,67 @@ export default function FifoPage() {
         return pages;
     };
 
+    // Data e hora de impressão
+    const printDateTime = new Date().toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
+
+    // Loading inicial
+    if (checkingAuth) {
+        return (
+            <div className="min-h-screen bg-gray-100 dark:bg-neutral-900 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-shopee-primary" />
+            </div>
+        );
+    }
+
+    // Modal de Autenticação
+    if (!isAuthenticated) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 dark:from-neutral-900 dark:to-neutral-800 flex items-center justify-center p-8">
+                <div className="bg-white dark:bg-neutral-800 p-8 rounded-2xl shadow-2xl border border-gray-200 dark:border-neutral-700 w-full max-w-md">
+                    <div className="flex flex-col items-center mb-6">
+                        <div className="w-16 h-16 bg-shopee-primary/10 rounded-full flex items-center justify-center mb-4">
+                            <Lock className="w-8 h-8 text-shopee-primary" />
+                        </div>
+                        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Acesso Restrito</h1>
+                        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Etiquetas FIFO</p>
+                    </div>
+
+                    <div className="space-y-4">
+                        <input
+                            type="password"
+                            value={authPassword}
+                            onChange={(e) => setAuthPassword(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAuth()}
+                            placeholder="Digite a senha"
+                            className="w-full p-4 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-shopee-primary outline-none text-center text-lg tracking-widest"
+                            autoFocus
+                        />
+                        {authError && (
+                            <p className="text-red-500 text-sm text-center">{authError}</p>
+                        )}
+                        <button
+                            onClick={handleAuth}
+                            disabled={authLoading}
+                            className="w-full bg-shopee-primary hover:bg-shopee-dark text-white py-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                            {authLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Lock className="w-5 h-5" />}
+                            Entrar
+                        </button>
+                    </div>
+
+                    <div className="mt-6 text-center">
+                        <Link href="/" className="text-gray-500 dark:text-gray-400 hover:text-shopee-primary text-sm">
+                            ← Voltar para o Início
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-gray-100 dark:bg-neutral-900 p-8 print:p-0 print:bg-white text-gray-900 dark:text-gray-100">
             {/* Navigation */}
@@ -302,6 +430,32 @@ export default function FifoPage() {
                 </Link>
                 <h1 className="text-2xl font-bold">Etiquetas FIFO</h1>
             </div>
+
+            {/* Alerta de Limite Excedido */}
+            {exceeded && (
+                <div className="max-w-7xl mx-auto mb-4 print:hidden">
+                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start gap-3">
+                        <AlertTriangle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                            <h3 className="font-bold text-red-700 dark:text-red-400">Limite de QRCodes Excedido!</h3>
+                            <p className="text-red-600 dark:text-red-300 text-sm mt-1">
+                                A planilha possui mais de 5.000 registros. Considere gerar e imprimir os QRCodes não vinculados.
+                            </p>
+                            {unlinkedData.length > 0 && (
+                                <button
+                                    onClick={() => {
+                                        setActiveTab('vincular');
+                                        setBatchResults(unlinkedData);
+                                    }}
+                                    className="mt-2 text-sm font-medium text-red-700 dark:text-red-400 underline hover:no-underline cursor-pointer"
+                                >
+                                    Ver {unlinkedData.length} não vinculados →
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6 print:block">
                 {/* Coluna Esquerda: Módulos + Tabela */}
@@ -371,6 +525,21 @@ export default function FifoPage() {
                                         Gerar
                                     </button>
                                 </div>
+                                {/* Barra de Progresso */}
+                                {generating && (
+                                    <div className="mt-2">
+                                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                            <span>Gerando etiquetas...</span>
+                                            <span>{Math.round(generateProgress)}%</span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 dark:bg-neutral-700 rounded-full h-2 overflow-hidden">
+                                            <div
+                                                className="bg-shopee-primary h-2 rounded-full transition-all duration-200"
+                                                style={{ width: `${generateProgress}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                                 {generatedLabels.length > 0 && (
                                     <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
                                         <p className="font-bold text-green-700 dark:text-green-400 mb-1 text-sm">✅ {generatedLabels.length} etiquetas criadas</p>
@@ -514,7 +683,11 @@ export default function FifoPage() {
                                 </thead>
                                 <tbody>
                                     {tableData.map((row, idx) => (
-                                        <tr key={row.qrcode + idx} className={`border-t border-gray-100 dark:border-neutral-700 ${!row.id_um && !row.id_dois ? 'bg-amber-50 dark:bg-amber-900/10' : ''}`}>
+                                        <tr
+                                            key={row.qrcode + idx}
+                                            onClick={() => setSelectedFromTable(row)}
+                                            className={`border-t border-gray-100 dark:border-neutral-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors ${!row.id_um && !row.id_dois ? 'bg-amber-50 dark:bg-amber-900/10' : ''} ${selectedFromTable?.qrcode === row.qrcode ? 'ring-2 ring-shopee-primary' : ''}`}
+                                        >
                                             <td className="px-2 py-1 font-mono font-bold">{row.qrcode}</td>
                                             <td className="px-2 py-1 truncate max-w-[80px]">{row.id_um || <span className="text-gray-400">-</span>}</td>
                                             <td className="px-2 py-1 truncate max-w-[80px]">{row.id_dois || <span className="text-gray-400">-</span>}</td>
@@ -589,9 +762,22 @@ export default function FifoPage() {
 
                             {/* Tabela 1: Gaiolas SEM VÍNCULO */}
                             <div className="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden">
-                                <div className="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-gray-200 dark:border-neutral-700 flex justify-between">
-                                    <span className="font-bold text-amber-700 dark:text-amber-400">⚠️ Gaiolas SEM Vínculo</span>
-                                    <span className="text-xs bg-amber-200 dark:bg-amber-700 text-amber-900 dark:text-amber-100 px-2 py-0.5 rounded-full">{unlinkedData.length}</span>
+                                <div className="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-gray-200 dark:border-neutral-700 flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-bold text-amber-700 dark:text-amber-400">⚠️ Gaiolas SEM Vínculo</span>
+                                        <span className="text-xs bg-amber-200 dark:bg-amber-700 text-amber-900 dark:text-amber-100 px-2 py-0.5 rounded-full">{unlinkedData.length}</span>
+                                    </div>
+                                    {unlinkedData.length > 0 && (
+                                        <button
+                                            onClick={() => {
+                                                setBatchResults(unlinkedData);
+                                                setActiveTab('lote');
+                                            }}
+                                            className="text-xs bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                                        >
+                                            <Printer className="w-3 h-3" /> Imprimir Todos
+                                        </button>
+                                    )}
                                 </div>
                                 <div className="max-h-60 overflow-y-auto">
                                     <table className="w-full text-sm">
@@ -654,6 +840,25 @@ export default function FifoPage() {
                     )}
 
                     {/* Single Label Preview - Apenas se NÃO estiver em 'vincular' */}
+                    {/* Preview da Tabela Espelho */}
+                    {selectedFromTable && !searchResult && activeTab !== 'lote' && activeTab !== 'gerar' && (
+                        <div className="print:hidden">
+                            <div className="text-center text-sm text-gray-500 mb-2">Clique para visualizar</div>
+                            <LabelWrapper orientation="portrait">
+                                <div className="flex flex-col items-center justify-center w-full h-full">
+                                    <h1 className="text-4xl font-bold font-open-sans tracking-tight mb-6">STAGE IN</h1>
+                                    <QRCodeSVG value={selectedFromTable.qrcode} size={200} level="H" />
+                                    <h2 className="text-2xl font-bold font-open-sans mt-4 text-black">
+                                        {selectedFromTable.qrcode}
+                                    </h2>
+                                    <p className="text-xl font-bold font-open-sans mt-2 text-black">
+                                        SÉRIE: {selectedFromTable.serie}
+                                    </p>
+                                </div>
+                            </LabelWrapper>
+                        </div>
+                    )}
+
                     {activeTab === 'buscar' && searchResult && (
                         <LabelWrapper orientation="portrait">
                             <div className="flex flex-col items-center justify-center w-full h-full">
@@ -664,6 +869,9 @@ export default function FifoPage() {
                                 </h2>
                                 <p className="text-xl font-bold font-open-sans mt-2 text-black">
                                     SÉRIE: {searchResult.serie}
+                                </p>
+                                <p className="text-xs text-gray-400 mt-4 print:block hidden">
+                                    Impresso em: {printDateTime}
                                 </p>
                             </div>
                         </LabelWrapper>
@@ -683,6 +891,9 @@ export default function FifoPage() {
                                             </h2>
                                             <p className="text-xl font-bold font-open-sans mt-2 text-black">
                                                 SÉRIE: {label.serie}
+                                            </p>
+                                            <p className="text-xs text-gray-400 mt-4 print:block hidden">
+                                                Impresso em: {printDateTime}
                                             </p>
                                         </div>
                                     </LabelWrapper>
@@ -706,6 +917,9 @@ export default function FifoPage() {
                                             <p className="text-xl font-bold font-open-sans mt-2 text-black">
                                                 SÉRIE: {label.serie}
                                             </p>
+                                            <p className="text-xs text-gray-400 mt-4 print:block hidden">
+                                                Impresso em: {printDateTime}
+                                            </p>
                                         </div>
                                     </LabelWrapper>
                                 </div>
@@ -714,9 +928,9 @@ export default function FifoPage() {
                     )}
 
                     {/* Empty State */}
-                    {((activeTab === 'buscar' && !searchResult) || (activeTab === 'lote' && batchResults.length === 0) || (activeTab === 'gerar' && generatedLabels.length === 0)) && (
+                    {!selectedFromTable && ((activeTab === 'buscar' && !searchResult) || (activeTab === 'lote' && batchResults.length === 0) || (activeTab === 'gerar' && generatedLabels.length === 0)) && (
                         <div className="print:hidden flex items-center justify-center h-96 text-gray-400">
-                            <p>Nenhuma etiqueta para exibir</p>
+                            <p>Clique em uma linha da tabela ou faça uma busca</p>
                         </div>
                     )}
                 </div>

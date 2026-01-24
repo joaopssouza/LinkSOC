@@ -13,7 +13,7 @@ export async function GET(request: Request) {
         const result = await getAllFifoData(page, pageSize);
         return NextResponse.json(result, {
             headers: {
-                'Cache-Control': 's-maxage=1800, stale-while-revalidate=3600',
+                'Cache-Control': 'no-store, no-cache, must-revalidate',
             },
         });
     } catch (error) {
