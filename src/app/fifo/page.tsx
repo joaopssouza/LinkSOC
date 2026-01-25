@@ -15,6 +15,30 @@ type FifoData = {
 
 type TabType = 'buscar' | 'gerar' | 'lote' | 'vincular';
 
+// Componente de Etiqueta FIFO reutilizável (Layout CG_PADRAO)
+const FifoLabel = ({ data, printDateTime }: { data: FifoData; printDateTime: string }) => (
+    <LabelWrapper orientation="portrait" bgType="qrcode">
+        <div className="flex flex-col items-center justify-between w-full h-full py-4">
+            {/* Header: Data/Hora (logo SPX já está no background) */}
+            <div className="w-full flex justify-start px-2">
+                <span className="text-sm font-bold text-black font-open-sans">{printDateTime}</span>
+            </div>
+
+            {/* Título STAGE IN */}
+            <h1 className="text-5xl font-black font-open-sans tracking-tight text-black">STAGE IN</h1>
+
+            {/* Código da Gaiola */}
+            <h2 className="text-3xl font-bold font-open-sans text-black">{data.qrcode}</h2>
+
+            {/* QRCode */}
+            <QRCodeSVG value={data.qrcode} size={180} level="H" />
+
+            {/* Série */}
+            <p className="text-xl font-bold font-open-sans text-black">SÉRIE: {data.serie}</p>
+        </div>
+    </LabelWrapper>
+);
+
 export default function FifoPage() {
     // === AUTENTICAÇÃO ===
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -77,6 +101,11 @@ export default function FifoPage() {
     const [unlinkedData, setUnlinkedData] = useState<FifoData[]>([]);
     const [linkedData, setLinkedData] = useState<FifoData[]>([]);
     const [loadingLinkTable, setLoadingLinkTable] = useState(false);
+
+    // Paginação das tabelas de vinculados
+    const [unlinkedPage, setUnlinkedPage] = useState(1);
+    const [linkedPage, setLinkedPage] = useState(1);
+    const LINK_PAGE_SIZE = 15;
 
     // Carregar dados de vinculação
     const loadLinkData = async () => {
@@ -685,7 +714,10 @@ export default function FifoPage() {
                                     {tableData.map((row, idx) => (
                                         <tr
                                             key={row.qrcode + idx}
-                                            onClick={() => setSelectedFromTable(row)}
+                                            onClick={() => {
+                                                setSelectedFromTable(row);
+                                                setSearchResult(null); // Limpar busca para mostrar preview do espelho
+                                            }}
                                             className={`border-t border-gray-100 dark:border-neutral-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors ${!row.id_um && !row.id_dois ? 'bg-amber-50 dark:bg-amber-900/10' : ''} ${selectedFromTable?.qrcode === row.qrcode ? 'ring-2 ring-shopee-primary' : ''}`}
                                         >
                                             <td className="px-2 py-1 font-mono font-bold">{row.qrcode}</td>
@@ -779,7 +811,7 @@ export default function FifoPage() {
                                         </button>
                                     )}
                                 </div>
-                                <div className="max-h-60 overflow-y-auto">
+                                <div className="overflow-x-auto">
                                     <table className="w-full text-sm">
                                         <thead className="bg-gray-50 dark:bg-neutral-700 sticky top-0">
                                             <tr>
@@ -788,7 +820,7 @@ export default function FifoPage() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {unlinkedData.map((row, idx) => (
+                                            {unlinkedData.slice((unlinkedPage - 1) * LINK_PAGE_SIZE, unlinkedPage * LINK_PAGE_SIZE).map((row, idx) => (
                                                 <tr key={`${row.qrcode}-${idx}`} className="border-t border-gray-100 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-700 cursor-pointer" onClick={() => setLinkQrcode(row.qrcode)}>
                                                     <td className="px-4 py-2 font-mono font-bold text-gray-700 dark:text-gray-300">{row.qrcode}</td>
                                                     <td className="px-4 py-2 font-mono text-gray-500">{row.serie}</td>
@@ -797,6 +829,30 @@ export default function FifoPage() {
                                         </tbody>
                                     </table>
                                 </div>
+                                {/* Paginação Não Vinculados */}
+                                {unlinkedData.length > LINK_PAGE_SIZE && (
+                                    <div className="px-4 py-2 border-t border-gray-200 dark:border-neutral-700 flex items-center justify-between text-xs">
+                                        <span className="text-gray-500">
+                                            {((unlinkedPage - 1) * LINK_PAGE_SIZE) + 1}-{Math.min(unlinkedPage * LINK_PAGE_SIZE, unlinkedData.length)} de {unlinkedData.length}
+                                        </span>
+                                        <div className="flex gap-1">
+                                            <button
+                                                onClick={() => setUnlinkedPage(p => Math.max(1, p - 1))}
+                                                disabled={unlinkedPage === 1}
+                                                className="px-2 py-1 rounded bg-gray-100 dark:bg-neutral-700 disabled:opacity-50 cursor-pointer"
+                                            >
+                                                <ChevronLeft className="w-3 h-3" />
+                                            </button>
+                                            <button
+                                                onClick={() => setUnlinkedPage(p => Math.min(Math.ceil(unlinkedData.length / LINK_PAGE_SIZE), p + 1))}
+                                                disabled={unlinkedPage >= Math.ceil(unlinkedData.length / LINK_PAGE_SIZE)}
+                                                className="px-2 py-1 rounded bg-gray-100 dark:bg-neutral-700 disabled:opacity-50 cursor-pointer"
+                                            >
+                                                <ChevronRight className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Tabela 2: Gaiolas COM VÍNCULO */}
@@ -805,7 +861,7 @@ export default function FifoPage() {
                                     <span className="font-bold text-blue-700 dark:text-blue-400">✅ Gaiolas COM Vínculo</span>
                                     <span className="text-xs bg-blue-200 dark:bg-blue-700 text-blue-900 dark:text-blue-100 px-2 py-0.5 rounded-full">{linkedData.length}</span>
                                 </div>
-                                <div className="max-h-96 overflow-y-auto">
+                                <div className="overflow-x-auto">
                                     <table className="w-full text-sm">
                                         <thead className="bg-gray-50 dark:bg-neutral-700 sticky top-0">
                                             <tr>
@@ -816,7 +872,7 @@ export default function FifoPage() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {linkedData.map((row, idx) => (
+                                            {linkedData.slice((linkedPage - 1) * LINK_PAGE_SIZE, linkedPage * LINK_PAGE_SIZE).map((row, idx) => (
                                                 <tr key={`${row.qrcode}-${idx}`} className="border-t border-gray-100 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-700">
                                                     <td className="px-4 py-2 font-mono font-bold text-gray-700 dark:text-gray-300">{row.qrcode}</td>
                                                     <td className="px-4 py-2 truncate max-w-[100px]">{row.id_um}</td>
@@ -824,7 +880,7 @@ export default function FifoPage() {
                                                     <td className="px-4 py-2 text-center">
                                                         <button
                                                             onClick={() => handleClearId(row.qrcode)}
-                                                            className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
+                                                            className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors cursor-pointer"
                                                             title="Limpar IDs"
                                                         >
                                                             <Trash2 className="w-4 h-4" />
@@ -835,6 +891,30 @@ export default function FifoPage() {
                                         </tbody>
                                     </table>
                                 </div>
+                                {/* Paginação Vinculados */}
+                                {linkedData.length > LINK_PAGE_SIZE && (
+                                    <div className="px-4 py-2 border-t border-gray-200 dark:border-neutral-700 flex items-center justify-between text-xs">
+                                        <span className="text-gray-500">
+                                            {((linkedPage - 1) * LINK_PAGE_SIZE) + 1}-{Math.min(linkedPage * LINK_PAGE_SIZE, linkedData.length)} de {linkedData.length}
+                                        </span>
+                                        <div className="flex gap-1">
+                                            <button
+                                                onClick={() => setLinkedPage(p => Math.max(1, p - 1))}
+                                                disabled={linkedPage === 1}
+                                                className="px-2 py-1 rounded bg-gray-100 dark:bg-neutral-700 disabled:opacity-50 cursor-pointer"
+                                            >
+                                                <ChevronLeft className="w-3 h-3" />
+                                            </button>
+                                            <button
+                                                onClick={() => setLinkedPage(p => Math.min(Math.ceil(linkedData.length / LINK_PAGE_SIZE), p + 1))}
+                                                disabled={linkedPage >= Math.ceil(linkedData.length / LINK_PAGE_SIZE)}
+                                                className="px-2 py-1 rounded bg-gray-100 dark:bg-neutral-700 disabled:opacity-50 cursor-pointer"
+                                            >
+                                                <ChevronRight className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -842,39 +922,14 @@ export default function FifoPage() {
                     {/* Single Label Preview - Apenas se NÃO estiver em 'vincular' */}
                     {/* Preview da Tabela Espelho */}
                     {selectedFromTable && !searchResult && activeTab !== 'lote' && activeTab !== 'gerar' && (
-                        <div className="print:hidden">
-                            <div className="text-center text-sm text-gray-500 mb-2">Clique para visualizar</div>
-                            <LabelWrapper orientation="portrait">
-                                <div className="flex flex-col items-center justify-center w-full h-full">
-                                    <h1 className="text-4xl font-bold font-open-sans tracking-tight mb-6">STAGE IN</h1>
-                                    <QRCodeSVG value={selectedFromTable.qrcode} size={200} level="H" />
-                                    <h2 className="text-2xl font-bold font-open-sans mt-4 text-black">
-                                        {selectedFromTable.qrcode}
-                                    </h2>
-                                    <p className="text-xl font-bold font-open-sans mt-2 text-black">
-                                        SÉRIE: {selectedFromTable.serie}
-                                    </p>
-                                </div>
-                            </LabelWrapper>
+                        <div>
+                            <div className="text-center text-sm text-gray-500 mb-2 print:hidden">Clique para visualizar</div>
+                            <FifoLabel data={selectedFromTable} printDateTime={printDateTime} />
                         </div>
                     )}
 
                     {activeTab === 'buscar' && searchResult && (
-                        <LabelWrapper orientation="portrait">
-                            <div className="flex flex-col items-center justify-center w-full h-full">
-                                <h1 className="text-4xl font-bold font-open-sans tracking-tight mb-6">STAGE IN</h1>
-                                <QRCodeSVG value={searchResult.qrcode} size={200} level="H" />
-                                <h2 className="text-2xl font-bold font-open-sans mt-4 text-black">
-                                    {searchResult.qrcode}
-                                </h2>
-                                <p className="text-xl font-bold font-open-sans mt-2 text-black">
-                                    SÉRIE: {searchResult.serie}
-                                </p>
-                                <p className="text-xs text-gray-400 mt-4 print:block hidden">
-                                    Impresso em: {printDateTime}
-                                </p>
-                            </div>
-                        </LabelWrapper>
+                        <FifoLabel data={searchResult} printDateTime={printDateTime} />
                     )}
 
                     {/* Batch Print Preview */}
@@ -882,21 +937,7 @@ export default function FifoPage() {
                         <div className="space-y-4 print:space-y-0">
                             {batchResults.map((label, idx) => (
                                 <div key={label.qrcode} className={idx < batchResults.length - 1 ? 'print:break-after-page' : ''}>
-                                    <LabelWrapper orientation="portrait">
-                                        <div className="flex flex-col items-center justify-center w-full h-full">
-                                            <h1 className="text-4xl font-bold font-open-sans tracking-tight mb-6">STAGE IN</h1>
-                                            <QRCodeSVG value={label.qrcode} size={200} level="H" />
-                                            <h2 className="text-2xl font-bold font-open-sans mt-4 text-black">
-                                                {label.qrcode}
-                                            </h2>
-                                            <p className="text-xl font-bold font-open-sans mt-2 text-black">
-                                                SÉRIE: {label.serie}
-                                            </p>
-                                            <p className="text-xs text-gray-400 mt-4 print:block hidden">
-                                                Impresso em: {printDateTime}
-                                            </p>
-                                        </div>
-                                    </LabelWrapper>
+                                    <FifoLabel data={label} printDateTime={printDateTime} />
                                 </div>
                             ))}
                         </div>
@@ -907,21 +948,7 @@ export default function FifoPage() {
                         <div className="space-y-4 print:space-y-0">
                             {generatedLabels.map((label, idx) => (
                                 <div key={label.qrcode} className={idx < generatedLabels.length - 1 ? 'print:break-after-page' : ''}>
-                                    <LabelWrapper orientation="portrait">
-                                        <div className="flex flex-col items-center justify-center w-full h-full">
-                                            <h1 className="text-4xl font-bold font-open-sans tracking-tight mb-6">STAGE IN</h1>
-                                            <QRCodeSVG value={label.qrcode} size={200} level="H" />
-                                            <h2 className="text-2xl font-bold font-open-sans mt-4 text-black">
-                                                {label.qrcode}
-                                            </h2>
-                                            <p className="text-xl font-bold font-open-sans mt-2 text-black">
-                                                SÉRIE: {label.serie}
-                                            </p>
-                                            <p className="text-xs text-gray-400 mt-4 print:block hidden">
-                                                Impresso em: {printDateTime}
-                                            </p>
-                                        </div>
-                                    </LabelWrapper>
+                                    <FifoLabel data={label} printDateTime={printDateTime} />
                                 </div>
                             ))}
                         </div>

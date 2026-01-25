@@ -3,16 +3,26 @@ import Image from 'next/image';
 interface LabelWrapperProps {
     orientation: 'landscape' | 'portrait';
     children: React.ReactNode;
+    bgType?: 'default' | 'qrcode';
 }
 
-export const LabelWrapper = ({ orientation, children }: LabelWrapperProps) => {
+export const LabelWrapper = ({ orientation, children, bgType = 'default' }: LabelWrapperProps) => {
     const isLandscape = orientation === 'landscape';
 
     // Landscape: 150mm x 100mm -> approx 567px x 378px
     // Portrait: 100mm x 150mm -> approx 378px x 567px
     const width = isLandscape ? '567px' : '378px';
     const height = isLandscape ? '378px' : '567px';
-    const bgImage = isLandscape ? '/assets/referencia/label-bg-landscape.png' : '/assets/referencia/label-bg-portrait.png';
+
+    // Selecionar background baseado no tipo
+    let bgImage: string;
+    if (isLandscape) {
+        bgImage = '/assets/referencia/label-bg-landscape.png';
+    } else {
+        bgImage = bgType === 'qrcode'
+            ? '/assets/referencia/label-bg-qrcode-portrait.png'
+            : '/assets/referencia/label-bg-portrait.png';
+    }
 
     return (
         <div
