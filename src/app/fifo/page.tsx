@@ -458,6 +458,18 @@ export default function FifoPage() {
                     Voltar
                 </Link>
                 <h1 className="text-2xl font-bold">Etiquetas FIFO</h1>
+                <button
+                    onClick={() => {
+                        sessionStorage.removeItem('fifo_auth');
+                        setIsAuthenticated(false);
+                        setAuthPassword('');
+                    }}
+                    className="absolute right-0 flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors text-sm cursor-pointer"
+                    title="Sair"
+                >
+                    <Lock className="w-4 h-4" />
+                    Sair
+                </button>
             </div>
 
             {/* Alerta de Limite Excedido */}
@@ -811,7 +823,7 @@ export default function FifoPage() {
                                         </button>
                                     )}
                                 </div>
-                                <div className="overflow-x-auto">
+                                <div className="overflow-x-auto max-h-[200px] overflow-y-auto">
                                     <table className="w-full text-sm">
                                         <thead className="bg-gray-50 dark:bg-neutral-700 sticky top-0">
                                             <tr>
@@ -861,7 +873,7 @@ export default function FifoPage() {
                                     <span className="font-bold text-blue-700 dark:text-blue-400">✅ Gaiolas COM Vínculo</span>
                                     <span className="text-xs bg-blue-200 dark:bg-blue-700 text-blue-900 dark:text-blue-100 px-2 py-0.5 rounded-full">{linkedData.length}</span>
                                 </div>
-                                <div className="overflow-x-auto">
+                                <div className="overflow-x-auto max-h-[200px] overflow-y-auto">
                                     <table className="w-full text-sm">
                                         <thead className="bg-gray-50 dark:bg-neutral-700 sticky top-0">
                                             <tr>
