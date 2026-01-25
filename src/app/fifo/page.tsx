@@ -933,7 +933,7 @@ export default function FifoPage() {
 
                     {/* Single Label Preview - Apenas se NÃO estiver em 'vincular' */}
                     {/* Preview da Tabela Espelho */}
-                    {selectedFromTable && !searchResult && activeTab !== 'lote' && activeTab !== 'gerar' && (
+                    {selectedFromTable && !searchResult && activeTab !== 'lote' && activeTab !== 'gerar' && activeTab !== 'vincular' && (
                         <div>
                             <div className="text-center text-sm text-gray-500 mb-2 print:hidden">Clique para visualizar</div>
                             <FifoLabel data={selectedFromTable} printDateTime={printDateTime} />
