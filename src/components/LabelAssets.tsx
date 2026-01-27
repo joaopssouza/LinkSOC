@@ -26,7 +26,7 @@ export const LabelWrapper = ({ orientation, children, bgType = 'default' }: Labe
 
     return (
         <div
-            className="relative overflow-hidden bg-white text-black shadow-2xl print:shadow-none print:m-0 box-border flex flex-col items-center justify-center p-8"
+            className="relative overflow-hidden bg-white text-black shadow-2xl print:shadow-none print:m-0 box-border flex flex-col items-center justify-center p-8 pt-1"
             style={{
                 width: width,
                 height: height,

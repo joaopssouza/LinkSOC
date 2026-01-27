@@ -18,9 +18,9 @@ type TabType = 'buscar' | 'gerar' | 'lote' | 'vincular';
 // Componente de Etiqueta FIFO reutilizável (Layout CG_PADRAO)
 const FifoLabel = ({ data, printDateTime }: { data: FifoData; printDateTime: string }) => (
     <LabelWrapper orientation="portrait" bgType="qrcode">
-        <div className="flex flex-col items-center justify-between w-full h-full py-4">
+        <div className="flex flex-col items-center justify-between w-full h-full py-0">
             {/* Header: Data/Hora (logo SPX já está no background) */}
-            <div className="w-full flex justify-start px-2">
+            <div className="w-full flex justify-start px-0">
                 <span className="text-sm font-bold text-black font-open-sans">{printDateTime}</span>
             </div>
 
@@ -28,10 +28,10 @@ const FifoLabel = ({ data, printDateTime }: { data: FifoData; printDateTime: str
             <h1 className="text-5xl font-black font-open-sans tracking-tight text-black">STAGE IN</h1>
 
             {/* Código da Gaiola */}
-            <h2 className="text-3xl font-bold font-open-sans text-black">{data.qrcode}</h2>
+            <h2 className="text-5xl font-bold font-open-sans text-black">{data.qrcode}</h2>
 
             {/* QRCode */}
-            <QRCodeSVG value={data.qrcode} size={180} level="H" />
+            <QRCodeSVG value={data.qrcode} size={280} level="H" />
 
             {/* Série */}
             <p className="text-xl font-bold font-open-sans text-black">SÉRIE: {data.serie}</p>
