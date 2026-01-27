@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { ArrowLeft, Search, Printer, Loader2, Plus, Link2, Package, RefreshCw, ChevronLeft, ChevronRight, Trash2, Lock, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Search, Printer, Loader2, Plus, Link2, Package, RefreshCw, ChevronLeft, ChevronRight, Trash2, Lock, AlertTriangle, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { LabelWrapper } from '@/components/LabelAssets';
 
@@ -13,7 +13,7 @@ type FifoData = {
     serie: string;
 };
 
-type TabType = 'buscar' | 'gerar' | 'lote' | 'vincular';
+type TabType = 'buscar' | 'gerar' | 'lote' | 'vincular' | 'reimprimir';
 
 // Componente de Etiqueta FIFO reutilizável (Layout CG_PADRAO)
 const FifoLabel = ({ data, printDateTime }: { data: FifoData; printDateTime: string }) => (
@@ -79,6 +79,13 @@ export default function FifoPage() {
     const [batchNotFound, setBatchNotFound] = useState<string[]>([]);
     const [loadingBatch, setLoadingBatch] = useState(false);
     const batchInputRef = useRef<HTMLTextAreaElement>(null);
+
+    // === REIMPRIMIR (AppSheet) ===
+    const [reprintLabels, setReprintLabels] = useState<FifoData[]>([]);
+    const [reprintNotFound, setReprintNotFound] = useState<string[]>([]);
+    const [reprintTotal, setReprintTotal] = useState(0);
+    const [loadingReprint, setLoadingReprint] = useState(false);
+    const [clearingReprint, setClearingReprint] = useState(false);
 
     // ... (omitting intermediate code if not changing, but replace_file_content needs contiguous block. 
     // Actually better to just update the handleBatchSearch and the UI section)
@@ -363,6 +370,50 @@ export default function FifoPage() {
         }
     };
 
+    // === REIMPRIMIR (AppSheet) ===
+    const loadReprint = async () => {
+        setLoadingReprint(true);
+        setReprintLabels([]);
+        setReprintNotFound([]);
+
+        try {
+            const res = await fetch(`/api/fifo/reprint?t=${Date.now()}`);
+            const json = await res.json();
+            if (json.success) {
+                setReprintLabels(json.found || []);
+                setReprintNotFound(json.notFound || []);
+                setReprintTotal(json.total || 0);
+            }
+        } catch {
+            alert('Erro ao carregar fila de reimpressão.');
+        } finally {
+            setLoadingReprint(false);
+        }
+    };
+
+    const clearReprint = async () => {
+        if (!confirm('Deseja limpar a fila de reimpressão após imprimir?')) return;
+        setClearingReprint(true);
+
+        try {
+            const res = await fetch('/api/fifo/reprint', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            const json = await res.json();
+            if (json.success) {
+                setReprintLabels([]);
+                setReprintNotFound([]);
+                setReprintTotal(0);
+            }
+        } catch {
+            alert('Erro ao limpar fila.');
+        } finally {
+            setClearingReprint(false);
+        }
+    };
+
     const handlePrint = () => {
         window.print();
     };
@@ -503,18 +554,21 @@ export default function FifoPage() {
                 {/* Coluna Esquerda: Módulos + Tabela */}
                 <div className="space-y-4 print:hidden">
                     {/* Tabs */}
-                    <div className="bg-white dark:bg-neutral-800 p-2 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-700 grid grid-cols-2 gap-2">
-                        <button onClick={() => setActiveTab('buscar')} className={`flex items-center justify-center p-3 rounded-lg font-bold transition-all ${activeTab === 'buscar' ? 'bg-shopee-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-neutral-700'}`}>
-                            <Search className="w-4 h-4 mr-2" /> Buscar
+                    <div className="bg-white dark:bg-neutral-800 p-2 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-700 grid grid-cols-5 gap-1">
+                        <button onClick={() => setActiveTab('buscar')} className={`flex items-center justify-center p-3 rounded-lg font-bold transition-all text-sm ${activeTab === 'buscar' ? 'bg-shopee-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-neutral-700'}`}>
+                            <Search className="w-4 h-4 mr-1" /> Buscar
                         </button>
-                        <button onClick={() => setActiveTab('gerar')} className={`flex items-center justify-center p-3 rounded-lg font-bold transition-all ${activeTab === 'gerar' ? 'bg-shopee-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-neutral-700'}`}>
-                            <Plus className="w-4 h-4 mr-2" /> Gerar
+                        <button onClick={() => setActiveTab('gerar')} className={`flex items-center justify-center p-3 rounded-lg font-bold transition-all text-sm ${activeTab === 'gerar' ? 'bg-shopee-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-neutral-700'}`}>
+                            <Plus className="w-4 h-4 mr-1" /> Gerar
                         </button>
-                        <button onClick={() => setActiveTab('lote')} className={`flex items-center justify-center p-3 rounded-lg font-bold transition-all ${activeTab === 'lote' ? 'bg-shopee-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-neutral-700'}`}>
-                            <Package className="w-4 h-4 mr-2" /> Lote
+                        <button onClick={() => setActiveTab('lote')} className={`flex items-center justify-center p-3 rounded-lg font-bold transition-all text-sm ${activeTab === 'lote' ? 'bg-shopee-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-neutral-700'}`}>
+                            <Package className="w-4 h-4 mr-1" /> Lote
                         </button>
-                        <button onClick={() => setActiveTab('vincular')} className={`flex items-center justify-center p-3 rounded-lg font-bold transition-all ${activeTab === 'vincular' ? 'bg-shopee-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-neutral-700'}`}>
-                            <Link2 className="w-4 h-4 mr-2" /> Vincular
+                        <button onClick={() => setActiveTab('vincular')} className={`flex items-center justify-center p-3 rounded-lg font-bold transition-all text-sm ${activeTab === 'vincular' ? 'bg-shopee-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-neutral-700'}`}>
+                            <Link2 className="w-4 h-4 mr-1" /> Vincular
+                        </button>
+                        <button onClick={() => { setActiveTab('reimprimir'); loadReprint(); }} className={`flex items-center justify-center p-3 rounded-lg font-bold transition-all text-sm ${activeTab === 'reimprimir' ? 'bg-shopee-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-neutral-700'}`}>
+                            <RotateCcw className="w-4 h-4 mr-1" /> Fila
                         </button>
                     </div>
 
@@ -710,6 +764,61 @@ export default function FifoPage() {
                                                 : part
                                         )}
                                     </p>
+                                )}
+                            </div>
+                        )}
+
+                        {/* === REIMPRIMIR (AppSheet) === */}
+                        {activeTab === 'reimprimir' && (
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-lg font-semibold text-shopee-primary">Fila de Reimpressão</h2>
+                                    <button onClick={loadReprint} disabled={loadingReprint} className="p-1 text-gray-400 hover:text-shopee-primary transition-colors cursor-pointer group">
+                                        <RefreshCw className={`w-4 h-4 ${loadingReprint ? 'animate-spin' : ''} group-hover:scale-110 transition-transform`} />
+                                    </button>
+                                </div>
+                                <p className="text-sm text-gray-500">Etiquetas bipadas no AppSheet aguardando impressão</p>
+
+                                {loadingReprint ? (
+                                    <div className="flex items-center justify-center py-8">
+                                        <Loader2 className="w-6 h-6 animate-spin text-shopee-primary" />
+                                    </div>
+                                ) : reprintLabels.length === 0 && reprintNotFound.length === 0 ? (
+                                    <div className="text-center py-8 text-gray-400">
+                                        <RotateCcw className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                                        <p>Fila vazia</p>
+                                        <p className="text-xs mt-1">Bipe gaiolas no AppSheet para adicionar</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="flex flex-col gap-2">
+                                            {reprintLabels.length > 0 && (
+                                                <p className="text-sm font-bold text-blue-600">
+                                                    ✅ {reprintLabels.length} etiqueta(s) na fila
+                                                </p>
+                                            )}
+                                            {reprintNotFound.length > 0 && (
+                                                <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                                                    <p className="text-sm font-bold text-red-600 dark:text-red-400">
+                                                        ❌ {reprintNotFound.length} não encontrado(s):
+                                                    </p>
+                                                    <div className="text-xs text-red-500 dark:text-red-300 font-mono mt-1 break-all">
+                                                        {reprintNotFound.join(', ')}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {reprintLabels.length > 0 && (
+                                            <div className="flex gap-2">
+                                                <button onClick={handlePrint} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer">
+                                                    <Printer className="w-5 h-5" /> IMPRIMIR
+                                                </button>
+                                                <button onClick={clearReprint} disabled={clearingReprint} className="px-4 bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50">
+                                                    {clearingReprint ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         )}
@@ -989,6 +1098,17 @@ export default function FifoPage() {
                         <div className="space-y-4 print:space-y-0">
                             {generatedLabels.map((label, idx) => (
                                 <div key={label.qrcode} className={idx < generatedLabels.length - 1 ? 'print:break-after-page' : ''}>
+                                    <FifoLabel data={label} printDateTime={printDateTime} />
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Reprint Labels Preview */}
+                    {activeTab === 'reimprimir' && reprintLabels.length > 0 && (
+                        <div className="space-y-4 print:space-y-0">
+                            {reprintLabels.map((label, idx) => (
+                                <div key={label.qrcode} className={idx < reprintLabels.length - 1 ? 'print:break-after-page' : ''}>
                                     <FifoLabel data={label} printDateTime={printDateTime} />
                                 </div>
                             ))}

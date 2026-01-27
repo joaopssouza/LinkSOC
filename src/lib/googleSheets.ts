@@ -518,3 +518,105 @@ export async function validateFifoPassword(password: string): Promise<boolean> {
         return false;
     }
 }
+
+// ========================
+// FIFO_REPRINT - Fila de Reimpressão (AppSheet)
+// ========================
+
+export type ReprintItem = {
+    id: string;        // ID bipado pelo AppSheet (pode ser ID_UM, ID_DOIS ou QRCode)
+    timestamp: string; // Data/hora do bipe
+    rowIndex: number;  // Índice da linha para exclusão
+};
+
+/**
+ * Busca todos os itens na fila de reimpressão (FIFO_REPRINT)
+ * @returns Lista de IDs para reimprimir e contagem
+ */
+export async function getReprintQueue(): Promise<{ items: ReprintItem[]; total: number }> {
+    if (!process.env.GOOGLE_SHEET_ID) {
+        return { items: [], total: 0 };
+    }
+
+    try {
+        await loadSheet();
+        const sheet = doc.sheetsByTitle['FIFO_REPRINT'];
+
+        if (!sheet) {
+            console.log('Planilha FIFO_REPRINT não encontrada');
+            return { items: [], total: 0 };
+        }
+
+        const rows = await sheet.getRows();
+
+        const items: ReprintItem[] = rows.map((row: any, idx: number) => ({
+            id: row.get('ID') || row.get(sheet.headerValues[0]) || '',
+            timestamp: row.get('TIMESTAMP') || row.get('DATA') || '',
+            rowIndex: idx
+        })).filter((item: ReprintItem) => item.id.trim() !== '');
+
+        return { items, total: items.length };
+    } catch (error) {
+        console.error('Erro ao buscar fila de reimpressão:', error);
+        return { items: [], total: 0 };
+    }
+}
+
+/**
+ * Busca as etiquetas correspondentes aos IDs na fila de reimpressão
+ * @returns Etiquetas encontradas e IDs não encontrados
+ */
+export async function getReprintLabels(): Promise<{ found: FifoData[]; notFound: string[]; total: number }> {
+    const queue = await getReprintQueue();
+
+    if (queue.total === 0) {
+        return { found: [], notFound: [], total: 0 };
+    }
+
+    const ids = queue.items.map(item => item.id);
+    const result = await getFifoByMultipleIds(ids);
+
+    return {
+        found: result.found,
+        notFound: result.notFound,
+        total: queue.total
+    };
+}
+
+/**
+ * Limpa a fila de reimpressão após impressão bem-sucedida
+ * @param ids Lista de IDs para remover da fila (opcional, se vazio limpa tudo)
+ */
+export async function clearReprintQueue(ids?: string[]): Promise<{ success: boolean; cleared: number }> {
+    if (!process.env.GOOGLE_SHEET_ID) {
+        return { success: true, cleared: 0 };
+    }
+
+    try {
+        await loadSheet();
+        const sheet = doc.sheetsByTitle['FIFO_REPRINT'];
+
+        if (!sheet) {
+            return { success: false, cleared: 0 };
+        }
+
+        const rows = await sheet.getRows();
+        let cleared = 0;
+
+        // Deletar de trás pra frente para não bagunçar índices
+        for (let i = rows.length - 1; i >= 0; i--) {
+            const rowId = rows[i].get('ID') || rows[i].get(sheet.headerValues[0]) || '';
+
+            // Se ids foi passado, só remove os especificados
+            if (!ids || ids.includes(rowId)) {
+                await rows[i].delete();
+                cleared++;
+            }
+        }
+
+        return { success: true, cleared };
+    } catch (error) {
+        console.error('Erro ao limpar fila de reimpressão:', error);
+        return { success: false, cleared: 0 };
+    }
+}
