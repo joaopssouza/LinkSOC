@@ -54,8 +54,8 @@ export type FifoData = {
 };
 
 /**
- * Busca uma etiqueta FIFO por ID_UM ou ID_DOIS
- * @param scanId O ID escaneado (pode ser ID_UM ou ID_DOIS)
+ * Busca uma etiqueta FIFO por QRCode (CGxxxx), ID_UM ou ID_DOIS
+ * @param scanId O valor escaneado (pode ser QRCode, ID_UM ou ID_DOIS)
  * @returns Dados da etiqueta ou null se não encontrado
  */
 export async function getFifoByScanId(scanId: string): Promise<FifoData | null> {
@@ -74,10 +74,13 @@ export async function getFifoByScanId(scanId: string): Promise<FifoData | null> 
     const sheet = doc.sheetsByTitle['ID_GAIOLA'] || doc.sheetsByTitle['FIFO'] || doc.sheetsByIndex[1];
     const rows = await sheet.getRows();
 
-    // Busca por ID_UM OU ID_DOIS
-    const row = rows.find((r: any) =>
-        r.get('ID_UM') === scanId || r.get('ID_DOIS') === scanId
-    );
+    // Busca por QRCode, ID_UM OU ID_DOIS
+    const row = rows.find((r: any) => {
+        const qrcode = r.get('QRCode') || r.get(sheet.headerValues[0]) || '';
+        return qrcode.toUpperCase() === scanId.toUpperCase() ||
+            r.get('ID_UM') === scanId ||
+            r.get('ID_DOIS') === scanId;
+    });
 
     if (!row) return null;
 
