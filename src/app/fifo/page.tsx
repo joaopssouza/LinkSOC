@@ -559,8 +559,8 @@ export default function FifoPage() {
                                     <button
                                         onClick={() => setGenerateMode('sequential')}
                                         className={`flex-1 py-2 px-3 rounded-lg font-medium text-sm transition-colors cursor-pointer ${generateMode === 'sequential'
-                                                ? 'bg-shopee-primary text-white'
-                                                : 'bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600'
+                                            ? 'bg-shopee-primary text-white'
+                                            : 'bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600'
                                             }`}
                                     >
                                         📋 Sequencial
@@ -568,8 +568,8 @@ export default function FifoPage() {
                                     <button
                                         onClick={() => setGenerateMode('random')}
                                         className={`flex-1 py-2 px-3 rounded-lg font-medium text-sm transition-colors cursor-pointer ${generateMode === 'random'
-                                                ? 'bg-shopee-primary text-white'
-                                                : 'bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600'
+                                            ? 'bg-shopee-primary text-white'
+                                            : 'bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600'
                                             }`}
                                     >
                                         🎲 Aleatório
@@ -577,8 +577,8 @@ export default function FifoPage() {
                                 </div>
                                 <p className="text-xs text-gray-400">
                                     {generateMode === 'sequential'
-                                        ? 'Continua a partir do último número da série'
-                                        : 'Gera números únicos que não existem na planilha'}
+                                        ? 'Preenche os CG disponíveis de CG0001 a CG5000 em ordem'
+                                        : 'Gera CG aleatórios únicos entre 0001 e 5000'}
                                 </p>
 
                                 <div className="flex gap-2">

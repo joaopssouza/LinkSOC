@@ -145,22 +145,29 @@ export async function getFifoByMultipleIds(scanIds: string[]): Promise<{ found: 
 
 export type GenerateMode = 'sequential' | 'random';
 
+// Limite máximo de CG
+export const MAX_CG_NUMBER = 5000;
+
 /**
  * Gera N etiquetas em massa (QRCode + Serie, sem IDs vinculados)
+ * - CG vai de CG0001 a CG5000 (independente da Serie)
+ * - Serie é autoincremento separado
+ * - Modo 'sequential': preenche os "buracos" na sequência de CG
+ * - Modo 'random': gera CG aleatórios únicos entre 0001 e 5000
  * @param quantity Quantidade de etiquetas a gerar
- * @param mode 'sequential' continua do último número, 'random' gera números aleatórios únicos
+ * @param mode 'sequential' ou 'random'
  * @returns Lista de novas etiquetas criadas
  */
 export async function createBatchQRCodes(quantity: number, mode: GenerateMode = 'sequential'): Promise<FifoData[]> {
     if (!process.env.GOOGLE_SHEET_ID) {
         const results: FifoData[] = [];
         for (let i = 1; i <= quantity; i++) {
-            const serie = mode === 'random' ? Math.floor(Math.random() * 9000) + 1000 : i;
+            const cgNum = mode === 'random' ? Math.floor(Math.random() * MAX_CG_NUMBER) + 1 : i;
             results.push({
-                qrcode: `CG${String(serie).padStart(4, '0')}`,
+                qrcode: `CG${String(cgNum).padStart(4, '0')}`,
                 id_um: '',
                 id_dois: '',
-                serie: String(serie).padStart(4, '0')
+                serie: String(i).padStart(4, '0')
             });
         }
         return results;
@@ -170,59 +177,81 @@ export async function createBatchQRCodes(quantity: number, mode: GenerateMode = 
     const sheet = doc.sheetsByTitle['ID_GAIOLA'] || doc.sheetsByTitle['FIFO'] || doc.sheetsByIndex[1];
     const rows = await sheet.getRows();
 
-    // Coletar todas as séries existentes
-    const existingSeries = new Set<number>();
+    // Coletar todos os CG existentes (extrair número do QRCode)
+    const existingCGs = new Set<number>();
     let maxSerie = 0;
+
     for (const row of rows) {
+        // Extrair número do CG (ex: CG0045 -> 45)
+        const qrcode = row.get('QRCode') || row.get(sheet.headerValues[0]) || '';
+        const cgMatch = qrcode.match(/CG(\d+)/i);
+        if (cgMatch) {
+            const cgNum = parseInt(cgMatch[1], 10);
+            if (!isNaN(cgNum)) {
+                existingCGs.add(cgNum);
+            }
+        }
+
+        // Encontrar maior Serie para autoincremento
         const serieVal = row.get('Serie') || row.get('SERIE') || '0';
         const serieNum = parseInt(serieVal, 10);
-        if (!isNaN(serieNum)) {
-            existingSeries.add(serieNum);
-            if (serieNum > maxSerie) {
-                maxSerie = serieNum;
-            }
+        if (!isNaN(serieNum) && serieNum > maxSerie) {
+            maxSerie = serieNum;
         }
     }
 
     const newRows: FifoData[] = [];
+    let serieCounter = maxSerie; // Serie é autoincremento independente
 
     if (mode === 'sequential') {
-        // Modo Sequencial: continua do último número
-        for (let i = 1; i <= quantity; i++) {
-            const newSerie = maxSerie + i;
-            const serieStr = String(newSerie).padStart(4, '0');
-            const qrcode = `CG${serieStr}`;
+        // Modo Sequencial: preenche os "buracos" na sequência de CG0001 a CG5000
+        let cgNum = 1;
 
-            await sheet.addRow({
-                [sheet.headerValues[0]]: qrcode,
-                'ID_UM': '',
-                'ID_DOIS': '',
-                'Serie': serieStr
-            });
+        while (newRows.length < quantity && cgNum <= MAX_CG_NUMBER) {
+            // Se este CG não existe, criar
+            if (!existingCGs.has(cgNum)) {
+                serieCounter++;
+                const cgStr = String(cgNum).padStart(4, '0');
+                const serieStr = String(serieCounter).padStart(4, '0');
+                const qrcode = `CG${cgStr}`;
 
-            newRows.push({
-                qrcode,
-                id_um: '',
-                id_dois: '',
-                serie: serieStr
-            });
+                await sheet.addRow({
+                    [sheet.headerValues[0]]: qrcode,
+                    'ID_UM': '',
+                    'ID_DOIS': '',
+                    'Serie': serieStr
+                });
+
+                newRows.push({
+                    qrcode,
+                    id_um: '',
+                    id_dois: '',
+                    serie: serieStr
+                });
+
+                existingCGs.add(cgNum); // Marcar como usado para esta sessão
+            }
+            cgNum++;
         }
     } else {
-        // Modo Aleatório: gera números únicos que não existem
+        // Modo Aleatório: gera CG únicos aleatórios entre 0001 e 5000
         const generated = new Set<number>();
         let attempts = 0;
         const maxAttempts = quantity * 100; // Evitar loop infinito
 
         while (generated.size < quantity && attempts < maxAttempts) {
-            // Gera número entre 1 e 9999
-            const randomSerie = Math.floor(Math.random() * 9999) + 1;
+            // Gera número entre 1 e 5000
+            const randomCG = Math.floor(Math.random() * MAX_CG_NUMBER) + 1;
 
             // Verifica se não existe na planilha e não foi gerado nesta sessão
-            if (!existingSeries.has(randomSerie) && !generated.has(randomSerie)) {
-                generated.add(randomSerie);
+            if (!existingCGs.has(randomCG) && !generated.has(randomCG)) {
+                generated.add(randomCG);
+                existingCGs.add(randomCG); // Marcar como usado
+                serieCounter++;
 
-                const serieStr = String(randomSerie).padStart(4, '0');
-                const qrcode = `CG${serieStr}`;
+                const cgStr = String(randomCG).padStart(4, '0');
+                const serieStr = String(serieCounter).padStart(4, '0');
+                const qrcode = `CG${cgStr}`;
 
                 await sheet.addRow({
                     [sheet.headerValues[0]]: qrcode,
@@ -241,8 +270,12 @@ export async function createBatchQRCodes(quantity: number, mode: GenerateMode = 
             attempts++;
         }
 
-        // Ordena por série para melhor visualização
-        newRows.sort((a, b) => parseInt(a.serie) - parseInt(b.serie));
+        // Ordena por CG para melhor visualização
+        newRows.sort((a, b) => {
+            const aNum = parseInt(a.qrcode.replace('CG', ''));
+            const bNum = parseInt(b.qrcode.replace('CG', ''));
+            return aNum - bNum;
+        });
     }
 
     return newRows;
