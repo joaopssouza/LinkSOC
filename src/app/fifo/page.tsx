@@ -69,6 +69,7 @@ export default function FifoPage() {
 
     // === GERAR EM MASSA ===
     const [generateQty, setGenerateQty] = useState(1);
+    const [generateMode, setGenerateMode] = useState<'sequential' | 'random'>('sequential');
     const [generating, setGenerating] = useState(false);
     const [generatedLabels, setGeneratedLabels] = useState<FifoData[]>([]);
 
@@ -266,7 +267,7 @@ export default function FifoPage() {
             const res = await fetch('/api/fifo/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ quantity: generateQty })
+                body: JSON.stringify({ quantity: generateQty, mode: generateMode })
             });
             const json = await res.json();
             clearInterval(progressInterval);
@@ -552,6 +553,34 @@ export default function FifoPage() {
                             <div className="space-y-4">
                                 <h2 className="text-lg font-semibold text-shopee-primary">Gerar Etiquetas em Massa</h2>
                                 <p className="text-sm text-gray-500">Cria novas etiquetas sem IDs vinculados</p>
+
+                                {/* Seletor de Modo */}
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setGenerateMode('sequential')}
+                                        className={`flex-1 py-2 px-3 rounded-lg font-medium text-sm transition-colors cursor-pointer ${generateMode === 'sequential'
+                                                ? 'bg-shopee-primary text-white'
+                                                : 'bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600'
+                                            }`}
+                                    >
+                                        📋 Sequencial
+                                    </button>
+                                    <button
+                                        onClick={() => setGenerateMode('random')}
+                                        className={`flex-1 py-2 px-3 rounded-lg font-medium text-sm transition-colors cursor-pointer ${generateMode === 'random'
+                                                ? 'bg-shopee-primary text-white'
+                                                : 'bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600'
+                                            }`}
+                                    >
+                                        🎲 Aleatório
+                                    </button>
+                                </div>
+                                <p className="text-xs text-gray-400">
+                                    {generateMode === 'sequential'
+                                        ? 'Continua a partir do último número da série'
+                                        : 'Gera números únicos que não existem na planilha'}
+                                </p>
+
                                 <div className="flex gap-2">
                                     <input
                                         type="number"
@@ -570,7 +599,7 @@ export default function FifoPage() {
                                 {generating && (
                                     <div className="mt-2">
                                         <div className="flex justify-between text-xs text-gray-500 mb-1">
-                                            <span>Gerando etiquetas...</span>
+                                            <span>Gerando etiquetas ({generateMode === 'sequential' ? 'sequencial' : 'aleatório'})...</span>
                                             <span>{Math.round(generateProgress)}%</span>
                                         </div>
                                         <div className="w-full bg-gray-200 dark:bg-neutral-700 rounded-full h-2 overflow-hidden">

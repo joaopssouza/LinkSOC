@@ -143,20 +143,24 @@ export async function getFifoByMultipleIds(scanIds: string[]): Promise<{ found: 
     return { found: results, notFound };
 }
 
+export type GenerateMode = 'sequential' | 'random';
+
 /**
  * Gera N etiquetas em massa (QRCode + Serie, sem IDs vinculados)
  * @param quantity Quantidade de etiquetas a gerar
+ * @param mode 'sequential' continua do último número, 'random' gera números aleatórios únicos
  * @returns Lista de novas etiquetas criadas
  */
-export async function createBatchQRCodes(quantity: number): Promise<FifoData[]> {
+export async function createBatchQRCodes(quantity: number, mode: GenerateMode = 'sequential'): Promise<FifoData[]> {
     if (!process.env.GOOGLE_SHEET_ID) {
         const results: FifoData[] = [];
         for (let i = 1; i <= quantity; i++) {
+            const serie = mode === 'random' ? Math.floor(Math.random() * 9000) + 1000 : i;
             results.push({
-                qrcode: `CG${String(i).padStart(4, '0')}`,
+                qrcode: `CG${String(serie).padStart(4, '0')}`,
                 id_um: '',
                 id_dois: '',
-                serie: String(i).padStart(4, '0')
+                serie: String(serie).padStart(4, '0')
             });
         }
         return results;
@@ -166,36 +170,79 @@ export async function createBatchQRCodes(quantity: number): Promise<FifoData[]> 
     const sheet = doc.sheetsByTitle['ID_GAIOLA'] || doc.sheetsByTitle['FIFO'] || doc.sheetsByIndex[1];
     const rows = await sheet.getRows();
 
-    // Encontrar última série existente
+    // Coletar todas as séries existentes
+    const existingSeries = new Set<number>();
     let maxSerie = 0;
     for (const row of rows) {
         const serieVal = row.get('Serie') || row.get('SERIE') || '0';
         const serieNum = parseInt(serieVal, 10);
-        if (!isNaN(serieNum) && serieNum > maxSerie) {
-            maxSerie = serieNum;
+        if (!isNaN(serieNum)) {
+            existingSeries.add(serieNum);
+            if (serieNum > maxSerie) {
+                maxSerie = serieNum;
+            }
         }
     }
 
-    // Criar novas linhas
     const newRows: FifoData[] = [];
-    for (let i = 1; i <= quantity; i++) {
-        const newSerie = maxSerie + i;
-        const serieStr = String(newSerie).padStart(4, '0');
-        const qrcode = `CG${serieStr}`;
 
-        await sheet.addRow({
-            [sheet.headerValues[0]]: qrcode, // Coluna A = QRCode
-            'ID_UM': '',
-            'ID_DOIS': '',
-            'Serie': serieStr
-        });
+    if (mode === 'sequential') {
+        // Modo Sequencial: continua do último número
+        for (let i = 1; i <= quantity; i++) {
+            const newSerie = maxSerie + i;
+            const serieStr = String(newSerie).padStart(4, '0');
+            const qrcode = `CG${serieStr}`;
 
-        newRows.push({
-            qrcode,
-            id_um: '',
-            id_dois: '',
-            serie: serieStr
-        });
+            await sheet.addRow({
+                [sheet.headerValues[0]]: qrcode,
+                'ID_UM': '',
+                'ID_DOIS': '',
+                'Serie': serieStr
+            });
+
+            newRows.push({
+                qrcode,
+                id_um: '',
+                id_dois: '',
+                serie: serieStr
+            });
+        }
+    } else {
+        // Modo Aleatório: gera números únicos que não existem
+        const generated = new Set<number>();
+        let attempts = 0;
+        const maxAttempts = quantity * 100; // Evitar loop infinito
+
+        while (generated.size < quantity && attempts < maxAttempts) {
+            // Gera número entre 1 e 9999
+            const randomSerie = Math.floor(Math.random() * 9999) + 1;
+
+            // Verifica se não existe na planilha e não foi gerado nesta sessão
+            if (!existingSeries.has(randomSerie) && !generated.has(randomSerie)) {
+                generated.add(randomSerie);
+
+                const serieStr = String(randomSerie).padStart(4, '0');
+                const qrcode = `CG${serieStr}`;
+
+                await sheet.addRow({
+                    [sheet.headerValues[0]]: qrcode,
+                    'ID_UM': '',
+                    'ID_DOIS': '',
+                    'Serie': serieStr
+                });
+
+                newRows.push({
+                    qrcode,
+                    id_um: '',
+                    id_dois: '',
+                    serie: serieStr
+                });
+            }
+            attempts++;
+        }
+
+        // Ordena por série para melhor visualização
+        newRows.sort((a, b) => parseInt(a.serie) - parseInt(b.serie));
     }
 
     return newRows;
