@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { ArrowLeft, Search, Printer, Loader2, Plus, Link2, Package, RefreshCw, ChevronLeft, ChevronRight, Trash2, Lock, AlertTriangle, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Search, Printer, Loader2, Plus, Link2, Package, RefreshCw, ChevronLeft, ChevronRight, Trash2, Lock, AlertTriangle, RotateCcw, X } from 'lucide-react';
 import Link from 'next/link';
 import { LabelWrapper } from '@/components/LabelAssets';
 
@@ -458,29 +458,6 @@ export default function FifoPage() {
         }
     };
 
-    // === LIMPAR ETIQUETA (Buscar) ===
-    const handleClearSearchResult = async () => {
-        if (!searchResult) return;
-        if (!confirm(`Deseja limpar os IDs da gaiola ${searchResult.qrcode}?`)) return;
-
-        try {
-            const res = await fetch('/api/fifo/clear', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ qrcode: searchResult.qrcode })
-            });
-            const json = await res.json();
-            if (json.success) {
-                setSearchResult({ ...searchResult, id_um: '', id_dois: '' });
-                loadTableData(tablePage);
-            } else {
-                alert(`Erro: ${json.error}`);
-            }
-        } catch {
-            alert('Erro de conexão.');
-        }
-    };
-
     const handlePrint = () => {
         window.print();
     };
@@ -666,11 +643,9 @@ export default function FifoPage() {
                                         <button onClick={handlePrint} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer">
                                             <Printer className="w-5 h-5" /> IMPRIMIR
                                         </button>
-                                        {(searchResult.id_um || searchResult.id_dois) && (
-                                            <button onClick={handleClearSearchResult} className="px-4 bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer" title="Limpar IDs desta etiqueta">
-                                                <Trash2 className="w-5 h-5" />
-                                            </button>
-                                        )}
+                                        <button onClick={() => { setSearchResult(null); setSearchId(''); }} className="px-4 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer" title="Limpar visualização">
+                                            <X className="w-5 h-5" />
+                                        </button>
                                     </div>
                                 )}
                             </div>
