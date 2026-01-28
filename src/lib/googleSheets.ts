@@ -620,3 +620,144 @@ export async function clearReprintQueue(ids?: string[]): Promise<{ success: bool
         return { success: false, cleared: 0 };
     }
 }
+
+// ========================
+// TAREFAS - Integração AppSheet
+// ========================
+
+export type Tarefa = {
+    tarefa_id: string;
+    data_criacao: string;
+    status: string;
+    responsavel: string;
+};
+
+export type ItemTarefa = {
+    item_id: string;
+    tarefa_id: string;
+    lacre_id: string;
+};
+
+/**
+ * Busca todas as tarefas com status "Concluída"
+ */
+export async function getCompletedTasks(): Promise<Tarefa[]> {
+    if (!process.env.GOOGLE_SHEET_ID) {
+        return [];
+    }
+
+    try {
+        await loadSheet();
+        const sheet = doc.sheetsByTitle['Tarefas'];
+
+        if (!sheet) {
+            console.log('Planilha Tarefas não encontrada');
+            return [];
+        }
+
+        const rows = await sheet.getRows();
+
+        return rows
+            .map((row: any) => ({
+                tarefa_id: row.get('Tarefa_ID') || '',
+                data_criacao: row.get('Data_Criacao') || '',
+                status: row.get('Status') || '',
+                responsavel: row.get('Responsavel') || ''
+            }))
+            .filter((t: Tarefa) => t.status.toLowerCase() === 'concluída' || t.status.toLowerCase() === 'concluida');
+    } catch (error) {
+        console.error('Erro ao buscar tarefas:', error);
+        return [];
+    }
+}
+
+/**
+ * Busca os itens de uma tarefa específica
+ */
+export async function getTaskItems(tarefaId: string): Promise<ItemTarefa[]> {
+    if (!process.env.GOOGLE_SHEET_ID) {
+        return [];
+    }
+
+    try {
+        await loadSheet();
+        const sheet = doc.sheetsByTitle['Itens_Tarefa'];
+
+        if (!sheet) {
+            console.log('Planilha Itens_Tarefa não encontrada');
+            return [];
+        }
+
+        const rows = await sheet.getRows();
+
+        return rows
+            .map((row: any) => ({
+                item_id: row.get('Item_ID') || '',
+                tarefa_id: row.get('Tarefa_ID') || '',
+                lacre_id: row.get('Lacre_ID') || ''
+            }))
+            .filter((item: ItemTarefa) => item.tarefa_id === tarefaId);
+    } catch (error) {
+        console.error('Erro ao buscar itens da tarefa:', error);
+        return [];
+    }
+}
+
+/**
+ * Busca etiquetas FIFO pelos Lacre_IDs (pode ser ID_UM ou ID_DOIS)
+ */
+export async function getLabelsByLacreIds(lacreIds: string[]): Promise<{ found: FifoData[]; notFound: string[] }> {
+    if (!process.env.GOOGLE_SHEET_ID || lacreIds.length === 0) {
+        return { found: [], notFound: lacreIds };
+    }
+
+    try {
+        await loadSheet();
+        const sheet = doc.sheetsByTitle['ID_GAIOLA'] || doc.sheetsByTitle['FIFO'] || doc.sheetsByIndex[1];
+        const rows = await sheet.getRows();
+
+        const found: FifoData[] = [];
+        const notFound: string[] = [];
+
+        for (const lacreId of lacreIds) {
+            const row = rows.find((r: any) =>
+                r.get('ID_UM') === lacreId || r.get('ID_DOIS') === lacreId
+            );
+
+            if (row) {
+                found.push({
+                    qrcode: row.get('QRCode') || row.get(sheet.headerValues[0]) || '',
+                    id_um: row.get('ID_UM') || '',
+                    id_dois: row.get('ID_DOIS') || '',
+                    serie: row.get('Serie') || row.get('SERIE') || ''
+                });
+            } else {
+                notFound.push(lacreId);
+            }
+        }
+
+        return { found, notFound };
+    } catch (error) {
+        console.error('Erro ao buscar etiquetas por lacre:', error);
+        return { found: [], notFound: lacreIds };
+    }
+}
+
+/**
+ * Busca etiquetas de uma tarefa específica
+ */
+export async function getTaskLabels(tarefaId: string): Promise<{ found: FifoData[]; notFound: string[]; total: number }> {
+    const items = await getTaskItems(tarefaId);
+    const lacreIds = items.map(item => item.lacre_id).filter(id => id.trim() !== '');
+
+    if (lacreIds.length === 0) {
+        return { found: [], notFound: [], total: 0 };
+    }
+
+    const result = await getLabelsByLacreIds(lacreIds);
+    return {
+        found: result.found,
+        notFound: result.notFound,
+        total: lacreIds.length
+    };
+}

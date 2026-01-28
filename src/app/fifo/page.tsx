@@ -87,16 +87,19 @@ export default function FifoPage() {
     const [loadingReprint, setLoadingReprint] = useState(false);
     const [clearingReprint, setClearingReprint] = useState(false);
 
-    // ... (omitting intermediate code if not changing, but replace_file_content needs contiguous block. 
-    // Actually better to just update the handleBatchSearch and the UI section)
-
-    // Let's target the handleBatchSearch function first? No, I need to add the state.
-    // I entered "EndLine: 338" in the previous turn's intention but realized I should do it in chunks or one big block.
-    // The previous view_file showed lines 303-345.
-    // I need to add state near line 35. 
-    // I'll make a larger replacement covering state + handlers + UI. Wait, that's risky.
-    // I'll update the state definition first.
-
+    // === TAREFAS (Nova Fila) ===
+    type Tarefa = {
+        tarefa_id: string;
+        data_criacao: string;
+        status: string;
+        responsavel: string;
+    };
+    const [tasks, setTasks] = useState<Tarefa[]>([]);
+    const [selectedTask, setSelectedTask] = useState<Tarefa | null>(null);
+    const [taskLabels, setTaskLabels] = useState<FifoData[]>([]);
+    const [taskNotFound, setTaskNotFound] = useState<string[]>([]);
+    const [loadingTasks, setLoadingTasks] = useState(false);
+    const [loadingTaskLabels, setLoadingTaskLabels] = useState(false);
 
     // === VINCULAR ===
     const [linkQrcode, setLinkQrcode] = useState('');
@@ -414,6 +417,70 @@ export default function FifoPage() {
         }
     };
 
+    // === TAREFAS ===
+    const loadTasks = async () => {
+        setLoadingTasks(true);
+        setTasks([]);
+        setSelectedTask(null);
+        setTaskLabels([]);
+        setTaskNotFound([]);
+
+        try {
+            const res = await fetch(`/api/fifo/tasks?t=${Date.now()}`);
+            const json = await res.json();
+            if (json.success) {
+                setTasks(json.data || []);
+            }
+        } catch {
+            alert('Erro ao carregar tarefas.');
+        } finally {
+            setLoadingTasks(false);
+        }
+    };
+
+    const loadTaskLabels = async (tarefa: Tarefa) => {
+        setSelectedTask(tarefa);
+        setLoadingTaskLabels(true);
+        setTaskLabels([]);
+        setTaskNotFound([]);
+
+        try {
+            const res = await fetch(`/api/fifo/tasks/${tarefa.tarefa_id}?t=${Date.now()}`);
+            const json = await res.json();
+            if (json.success) {
+                setTaskLabels(json.found || []);
+                setTaskNotFound(json.notFound || []);
+            }
+        } catch {
+            alert('Erro ao carregar etiquetas da tarefa.');
+        } finally {
+            setLoadingTaskLabels(false);
+        }
+    };
+
+    // === LIMPAR ETIQUETA (Buscar) ===
+    const handleClearSearchResult = async () => {
+        if (!searchResult) return;
+        if (!confirm(`Deseja limpar os IDs da gaiola ${searchResult.qrcode}?`)) return;
+
+        try {
+            const res = await fetch('/api/fifo/clear', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ qrcode: searchResult.qrcode })
+            });
+            const json = await res.json();
+            if (json.success) {
+                setSearchResult({ ...searchResult, id_um: '', id_dois: '' });
+                loadTableData(tablePage);
+            } else {
+                alert(`Erro: ${json.error}`);
+            }
+        } catch {
+            alert('Erro de conexão.');
+        }
+    };
+
     const handlePrint = () => {
         window.print();
     };
@@ -567,7 +634,7 @@ export default function FifoPage() {
                         <button onClick={() => setActiveTab('vincular')} className={`flex items-center justify-center p-3 rounded-lg font-bold transition-all text-sm ${activeTab === 'vincular' ? 'bg-shopee-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-neutral-700'}`}>
                             <Link2 className="w-4 h-4 mr-1" /> Vincular
                         </button>
-                        <button onClick={() => { setActiveTab('reimprimir'); loadReprint(); }} className={`flex items-center justify-center p-3 rounded-lg font-bold transition-all text-sm ${activeTab === 'reimprimir' ? 'bg-shopee-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-neutral-700'}`}>
+                        <button onClick={() => { setActiveTab('reimprimir'); loadTasks(); }} className={`flex items-center justify-center p-3 rounded-lg font-bold transition-all text-sm ${activeTab === 'reimprimir' ? 'bg-shopee-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-neutral-700'}`}>
                             <RotateCcw className="w-4 h-4 mr-1" /> Fila
                         </button>
                     </div>
@@ -595,9 +662,16 @@ export default function FifoPage() {
                                 </button>
                                 {searchError && <p className="text-red-500 text-sm text-center">{searchError}</p>}
                                 {searchResult && (
-                                    <button onClick={handlePrint} className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer">
-                                        <Printer className="w-5 h-5" /> IMPRIMIR
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button onClick={handlePrint} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer">
+                                            <Printer className="w-5 h-5" /> IMPRIMIR
+                                        </button>
+                                        {(searchResult.id_um || searchResult.id_dois) && (
+                                            <button onClick={handleClearSearchResult} className="px-4 bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer" title="Limpar IDs desta etiqueta">
+                                                <Trash2 className="w-5 h-5" />
+                                            </button>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         )}
@@ -768,57 +842,83 @@ export default function FifoPage() {
                             </div>
                         )}
 
-                        {/* === REIMPRIMIR (AppSheet) === */}
+                        {/* === REIMPRIMIR (Tarefas Concluídas) === */}
                         {activeTab === 'reimprimir' && (
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
-                                    <h2 className="text-lg font-semibold text-shopee-primary">Fila de Reimpressão</h2>
-                                    <button onClick={loadReprint} disabled={loadingReprint} className="p-1 text-gray-400 hover:text-shopee-primary transition-colors cursor-pointer group">
-                                        <RefreshCw className={`w-4 h-4 ${loadingReprint ? 'animate-spin' : ''} group-hover:scale-110 transition-transform`} />
+                                    <h2 className="text-lg font-semibold text-shopee-primary">Tarefas Concluídas</h2>
+                                    <button onClick={loadTasks} disabled={loadingTasks} className="p-1 text-gray-400 hover:text-shopee-primary transition-colors cursor-pointer group">
+                                        <RefreshCw className={`w-4 h-4 ${loadingTasks ? 'animate-spin' : ''} group-hover:scale-110 transition-transform`} />
                                     </button>
                                 </div>
-                                <p className="text-sm text-gray-500">Etiquetas bipadas no AppSheet aguardando impressão</p>
+                                <p className="text-sm text-gray-500">Selecione uma tarefa para ver as etiquetas</p>
 
-                                {loadingReprint ? (
+                                {loadingTasks ? (
                                     <div className="flex items-center justify-center py-8">
                                         <Loader2 className="w-6 h-6 animate-spin text-shopee-primary" />
                                     </div>
-                                ) : reprintLabels.length === 0 && reprintNotFound.length === 0 ? (
+                                ) : tasks.length === 0 ? (
                                     <div className="text-center py-8 text-gray-400">
                                         <RotateCcw className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                                        <p>Fila vazia</p>
-                                        <p className="text-xs mt-1">Bipe gaiolas no AppSheet para adicionar</p>
+                                        <p>Nenhuma tarefa concluída</p>
                                     </div>
                                 ) : (
-                                    <>
-                                        <div className="flex flex-col gap-2">
-                                            {reprintLabels.length > 0 && (
-                                                <p className="text-sm font-bold text-blue-600">
-                                                    ✅ {reprintLabels.length} etiqueta(s) na fila
-                                                </p>
-                                            )}
-                                            {reprintNotFound.length > 0 && (
-                                                <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                                                    <p className="text-sm font-bold text-red-600 dark:text-red-400">
-                                                        ❌ {reprintNotFound.length} não encontrado(s):
-                                                    </p>
-                                                    <div className="text-xs text-red-500 dark:text-red-300 font-mono mt-1 break-all">
-                                                        {reprintNotFound.join(', ')}
+                                    <div className="space-y-3">
+                                        {/* Lista de Tarefas */}
+                                        <div className="max-h-40 overflow-y-auto border border-gray-200 dark:border-neutral-700 rounded-lg">
+                                            {tasks.map((tarefa) => (
+                                                <button
+                                                    key={tarefa.tarefa_id}
+                                                    onClick={() => loadTaskLabels(tarefa)}
+                                                    className={`w-full text-left p-3 border-b border-gray-100 dark:border-neutral-700 last:border-0 transition-colors cursor-pointer ${selectedTask?.tarefa_id === tarefa.tarefa_id
+                                                        ? 'bg-shopee-primary/10 border-l-4 border-l-shopee-primary'
+                                                        : 'hover:bg-gray-50 dark:hover:bg-neutral-700'
+                                                        }`}
+                                                >
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="font-mono text-sm font-bold">{tarefa.tarefa_id}</span>
+                                                        <span className="text-xs text-gray-400">{tarefa.responsavel}</span>
                                                     </div>
-                                                </div>
-                                            )}
+                                                    <div className="text-xs text-gray-500 mt-1">{tarefa.data_criacao}</div>
+                                                </button>
+                                            ))}
                                         </div>
-                                        {reprintLabels.length > 0 && (
-                                            <div className="flex gap-2">
-                                                <button onClick={handlePrint} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer">
-                                                    <Printer className="w-5 h-5" /> IMPRIMIR
-                                                </button>
-                                                <button onClick={clearReprint} disabled={clearingReprint} className="px-4 bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50">
-                                                    {clearingReprint ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
-                                                </button>
+
+                                        {/* Etiquetas da Tarefa Selecionada */}
+                                        {selectedTask && (
+                                            <div className="mt-4 p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-lg">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="font-bold text-sm">Etiquetas: {selectedTask.tarefa_id}</span>
+                                                    {loadingTaskLabels && <Loader2 className="w-4 h-4 animate-spin text-shopee-primary" />}
+                                                </div>
+
+                                                {!loadingTaskLabels && (
+                                                    <>
+                                                        {taskLabels.length > 0 && (
+                                                            <p className="text-sm font-bold text-blue-600 mb-2">
+                                                                ✅ {taskLabels.length} etiqueta(s) encontrada(s)
+                                                            </p>
+                                                        )}
+                                                        {taskNotFound.length > 0 && (
+                                                            <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg mb-2">
+                                                                <p className="text-xs font-bold text-red-600 dark:text-red-400">
+                                                                    ❌ {taskNotFound.length} não encontrado(s):
+                                                                </p>
+                                                                <div className="text-xs text-red-500 dark:text-red-300 font-mono mt-1 break-all">
+                                                                    {taskNotFound.join(', ')}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {taskLabels.length > 0 && (
+                                                            <button onClick={handlePrint} className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer">
+                                                                <Printer className="w-5 h-5" /> IMPRIMIR
+                                                            </button>
+                                                        )}
+                                                    </>
+                                                )}
                                             </div>
                                         )}
-                                    </>
+                                    </div>
                                 )}
                             </div>
                         )}
@@ -1104,11 +1204,11 @@ export default function FifoPage() {
                         </div>
                     )}
 
-                    {/* Reprint Labels Preview */}
-                    {activeTab === 'reimprimir' && reprintLabels.length > 0 && (
+                    {/* Task Labels Preview */}
+                    {activeTab === 'reimprimir' && taskLabels.length > 0 && (
                         <div className="space-y-4 print:space-y-0">
-                            {reprintLabels.map((label, idx) => (
-                                <div key={label.qrcode} className={idx < reprintLabels.length - 1 ? 'print:break-after-page' : ''}>
+                            {taskLabels.map((label, idx) => (
+                                <div key={label.qrcode} className={idx < taskLabels.length - 1 ? 'print:break-after-page' : ''}>
                                     <FifoLabel data={label} printDateTime={printDateTime} />
                                 </div>
                             ))}
