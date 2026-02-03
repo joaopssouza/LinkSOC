@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { ArrowLeft, Search, Printer, Loader2, Plus, Link2, Package, RefreshCw, ChevronLeft, ChevronRight, Trash2, Lock, AlertTriangle, RotateCcw, X } from 'lucide-react';
+import { ArrowLeft, Search, Printer, Loader2, Plus, Link2, Package, RefreshCw, ChevronLeft, ChevronRight, Trash2, Lock, AlertTriangle, RotateCcw, X, Edit2, History } from 'lucide-react';
 import Link from 'next/link';
 import { LabelWrapper } from '@/components/LabelAssets';
 
@@ -11,9 +11,10 @@ type FifoData = {
     id_um: string;
     id_dois: string;
     serie: string;
+    impresso?: string;
 };
 
-type TabType = 'buscar' | 'gerar' | 'lote' | 'vincular' | 'reimprimir';
+type TabType = 'buscar' | 'gerar' | 'lote' | 'vincular' | 'reimprimir' | 'historico';
 
 // Componente de Etiqueta FIFO reutilizável (Layout CG_PADRAO)
 const FifoLabel = ({ data, printDateTime }: { data: FifoData; printDateTime: string }) => (
@@ -57,6 +58,8 @@ export default function FifoPage() {
     const [loadingTable, setLoadingTable] = useState(false);
     const [exceeded, setExceeded] = useState(false);
     const [selectedFromTable, setSelectedFromTable] = useState<FifoData | null>(null);
+    const [selectedLabels, setSelectedLabels] = useState<Set<string>>(new Set());
+    const [selectAll, setSelectAll] = useState(false);
 
     // === BARRA DE PROGRESSO ===
     const [generateProgress, setGenerateProgress] = useState(0);
@@ -101,12 +104,25 @@ export default function FifoPage() {
     const [loadingTasks, setLoadingTasks] = useState(false);
     const [loadingTaskLabels, setLoadingTaskLabels] = useState(false);
 
+    // === EDIÇÃO DE VÍNCULOS ===
+    const [editingLabel, setEditingLabel] = useState<FifoData | null>(null);
+    const [editIdUm, setEditIdUm] = useState('');
+    const [editIdDois, setEditIdDois] = useState('');
+    const [saving, setSaving] = useState(false);
+
     // === VINCULAR ===
     const [linkQrcode, setLinkQrcode] = useState('');
     const [linkIdUm, setLinkIdUm] = useState('');
     const [linkIdDois, setLinkIdDois] = useState('');
     const [linking, setLinking] = useState(false);
     const [linkMessage, setLinkMessage] = useState('');
+
+    // === HISTÓRICO ===
+    const [historyData, setHistoryData] = useState<FifoData[]>([]);
+    const [historyPage, setHistoryPage] = useState(1);
+    const [historyTotalPages, setHistoryTotalPages] = useState(1);
+    const [historyTotal, setHistoryTotal] = useState(0);
+    const [loadingHistory, setLoadingHistory] = useState(false);
 
     // Tabelas Vincular
     const [unlinkedData, setUnlinkedData] = useState<FifoData[]>([]);
@@ -462,6 +478,86 @@ export default function FifoPage() {
         window.print();
     };
 
+    // === SELEÇÃO MÚLTIPLA ===
+    const toggleSelection = (qrcode: string) => {
+        setSelectedLabels(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(qrcode)) {
+                newSet.delete(qrcode);
+            } else {
+                newSet.add(qrcode);
+            }
+            return newSet;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (selectAll) {
+            setSelectedLabels(new Set());
+        } else {
+            setSelectedLabels(new Set(tableData.map(d => d.qrcode)));
+        }
+        setSelectAll(!selectAll);
+    };
+
+    const getSelectedLabelsData = (): FifoData[] => {
+        return tableData.filter(d => selectedLabels.has(d.qrcode));
+    };
+
+    // === EDIÇÃO DE VÍNCULOS ===
+    const openEditModal = (label: FifoData) => {
+        setEditingLabel(label);
+        setEditIdUm(label.id_um || '');
+        setEditIdDois(label.id_dois || '');
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingLabel) return;
+        setSaving(true);
+
+        try {
+            const res = await fetch('/api/fifo/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    qrcode: editingLabel.qrcode,
+                    id_um: editIdUm,
+                    id_dois: editIdDois
+                })
+            });
+            const json = await res.json();
+            if (json.success) {
+                setEditingLabel(null);
+                loadTableData(tablePage); // Recarregar tabela
+            } else {
+                alert(`Erro: ${json.error}`);
+            }
+        } catch {
+            alert('Erro de conexão.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // === HISTÓRICO ===
+    const loadHistory = async (page: number = 1) => {
+        setLoadingHistory(true);
+        try {
+            const res = await fetch(`/api/fifo/history?page=${page}&pageSize=50&t=${Date.now()}`);
+            const json = await res.json();
+            if (json.success) {
+                setHistoryData(json.data || []);
+                setHistoryPage(json.page);
+                setHistoryTotalPages(json.totalPages);
+                setHistoryTotal(json.total);
+            }
+        } catch {
+            alert('Erro ao carregar histórico.');
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
+
     // Gerar números de página para exibição
     const getPageNumbers = () => {
         const pages: (number | string)[] = [];
@@ -598,7 +694,7 @@ export default function FifoPage() {
                 {/* Coluna Esquerda: Módulos + Tabela */}
                 <div className="space-y-4 print:hidden">
                     {/* Tabs */}
-                    <div className="bg-white dark:bg-neutral-800 p-2 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-700 grid grid-cols-5 gap-1">
+                    <div className="bg-white dark:bg-neutral-800 p-2 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-700 grid grid-cols-6 gap-1">
                         <button onClick={() => setActiveTab('buscar')} className={`flex items-center justify-center p-3 rounded-lg font-bold transition-all text-sm ${activeTab === 'buscar' ? 'bg-shopee-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-neutral-700'}`}>
                             <Search className="w-4 h-4 mr-1" /> Buscar
                         </button>
@@ -613,6 +709,9 @@ export default function FifoPage() {
                         </button>
                         <button onClick={() => { setActiveTab('reimprimir'); loadTasks(); }} className={`flex items-center justify-center p-3 rounded-lg font-bold transition-all text-sm ${activeTab === 'reimprimir' ? 'bg-shopee-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-neutral-700'}`}>
                             <RotateCcw className="w-4 h-4 mr-1" /> Fila
+                        </button>
+                        <button onClick={() => { setActiveTab('historico'); loadHistory(); }} className={`flex items-center justify-center p-3 rounded-lg font-bold transition-all text-sm ${activeTab === 'historico' ? 'bg-shopee-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-neutral-700'}`}>
+                            <History className="w-4 h-4 mr-1" /> Histórico
                         </button>
                     </div>
 
@@ -897,6 +996,75 @@ export default function FifoPage() {
                                 )}
                             </div>
                         )}
+
+                        {/* === HISTÓRICO === */}
+                        {activeTab === 'historico' && (
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-lg font-semibold text-shopee-primary">Histórico de Impressões</h2>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-gray-500">{historyTotal} registro(s)</span>
+                                        <button onClick={() => loadHistory(historyPage)} disabled={loadingHistory} className="p-1 text-gray-400 hover:text-shopee-primary transition-colors cursor-pointer group">
+                                            <RefreshCw className={`w-4 h-4 ${loadingHistory ? 'animate-spin' : ''} group-hover:scale-110 transition-transform`} />
+                                        </button>
+                                    </div>
+                                </div>
+                                <p className="text-sm text-gray-500">Etiquetas marcadas como impressas</p>
+
+                                {loadingHistory ? (
+                                    <div className="flex items-center justify-center py-8">
+                                        <Loader2 className="w-6 h-6 animate-spin text-shopee-primary" />
+                                    </div>
+                                ) : historyData.length === 0 ? (
+                                    <div className="text-center py-8 text-gray-400">
+                                        <History className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                                        <p>Nenhuma impressão registrada</p>
+                                    </div>
+                                ) : (
+                                    <div className="max-h-[200px] overflow-y-auto border border-gray-200 dark:border-neutral-700 rounded-lg">
+                                        <table className="w-full text-xs">
+                                            <thead className="bg-gray-50 dark:bg-neutral-700 sticky top-0">
+                                                <tr>
+                                                    <th className="px-2 py-1.5 text-left font-semibold">QRCode</th>
+                                                    <th className="px-2 py-1.5 text-left font-semibold">ID_UM</th>
+                                                    <th className="px-2 py-1.5 text-left font-semibold">Impresso</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {historyData.map((row, idx) => (
+                                                    <tr key={row.qrcode + idx} className="border-t border-gray-100 dark:border-neutral-700">
+                                                        <td className="px-2 py-1 font-mono font-bold">{row.qrcode}</td>
+                                                        <td className="px-2 py-1 truncate max-w-[80px]">{row.id_um || '-'}</td>
+                                                        <td className="px-2 py-1 text-xs text-green-600">{row.impresso}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+
+                                {/* Paginação */}
+                                {historyTotalPages > 1 && (
+                                    <div className="flex items-center justify-center gap-2 pt-2">
+                                        <button
+                                            onClick={() => loadHistory(historyPage - 1)}
+                                            disabled={historyPage === 1 || loadingHistory}
+                                            className="px-3 py-1 rounded bg-gray-100 dark:bg-neutral-700 disabled:opacity-50 text-sm"
+                                        >
+                                            Anterior
+                                        </button>
+                                        <span className="text-sm text-gray-500">{historyPage} / {historyTotalPages}</span>
+                                        <button
+                                            onClick={() => loadHistory(historyPage + 1)}
+                                            disabled={historyPage >= historyTotalPages || loadingHistory}
+                                            className="px-3 py-1 rounded bg-gray-100 dark:bg-neutral-700 disabled:opacity-50 text-sm"
+                                        >
+                                            Próximo
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Tabela Espelho - Abaixo dos módulos, compacta */}
@@ -929,31 +1097,70 @@ export default function FifoPage() {
                             <table className="w-full text-xs">
                                 <thead className="bg-gray-100 dark:bg-neutral-700 sticky top-0">
                                     <tr>
+                                        <th className="px-2 py-1.5 text-center w-8">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectAll && tableData.length > 0}
+                                                onChange={toggleSelectAll}
+                                                className="w-3.5 h-3.5 rounded border-gray-300 text-shopee-primary focus:ring-shopee-primary cursor-pointer"
+                                            />
+                                        </th>
                                         <th className="px-2 py-1.5 text-left font-semibold">QRCode</th>
                                         <th className="px-2 py-1.5 text-left font-semibold">ID_UM</th>
                                         <th className="px-2 py-1.5 text-left font-semibold">ID_DOIS</th>
                                         <th className="px-2 py-1.5 text-left font-semibold">Série</th>
+                                        <th className="px-2 py-1.5 text-center w-8">Ação</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {tableData.map((row, idx) => (
                                         <tr
                                             key={row.qrcode + idx}
-                                            onClick={() => {
-                                                setSelectedFromTable(row);
-                                                setSearchResult(null); // Limpar busca para mostrar preview do espelho
-                                            }}
-                                            className={`border-t border-gray-100 dark:border-neutral-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors ${!row.id_um && !row.id_dois ? 'bg-amber-50 dark:bg-amber-900/10' : ''} ${selectedFromTable?.qrcode === row.qrcode ? 'ring-2 ring-shopee-primary' : ''}`}
+                                            className={`border-t border-gray-100 dark:border-neutral-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors ${!row.id_um && !row.id_dois ? 'bg-amber-50 dark:bg-amber-900/10' : ''} ${selectedLabels.has(row.qrcode) ? 'bg-shopee-primary/10' : ''}`}
                                         >
-                                            <td className="px-2 py-1 font-mono font-bold">{row.qrcode}</td>
+                                            <td className="px-2 py-1 text-center">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedLabels.has(row.qrcode)}
+                                                    onChange={(e) => {
+                                                        e.stopPropagation();
+                                                        toggleSelection(row.qrcode);
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="w-3.5 h-3.5 rounded border-gray-300 text-shopee-primary focus:ring-shopee-primary cursor-pointer"
+                                                />
+                                            </td>
+                                            <td
+                                                className="px-2 py-1 font-mono font-bold"
+                                                onClick={() => {
+                                                    setSelectedFromTable(row);
+                                                    setSearchResult(null);
+                                                }}
+                                            >
+                                                {row.qrcode}
+                                            </td>
                                             <td className="px-2 py-1 truncate max-w-[80px]">{row.id_um || <span className="text-gray-400">-</span>}</td>
                                             <td className="px-2 py-1 truncate max-w-[80px]">{row.id_dois || <span className="text-gray-400">-</span>}</td>
                                             <td className="px-2 py-1 font-mono">{row.serie}</td>
+                                            <td className="px-2 py-1 text-center">
+                                                {(row.id_um || row.id_dois) && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            openEditModal(row);
+                                                        }}
+                                                        className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                                                        title="Editar vínculos"
+                                                    >
+                                                        <Edit2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
+                                            </td>
                                         </tr>
                                     ))}
                                     {tableData.length === 0 && (
                                         <tr>
-                                            <td colSpan={4} className="px-2 py-4 text-center text-gray-400">
+                                            <td colSpan={6} className="px-2 py-4 text-center text-gray-400">
                                                 {loadingTable ? 'Carregando...' : 'Nenhum registro'}
                                             </td>
                                         </tr>
@@ -961,6 +1168,24 @@ export default function FifoPage() {
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Botão Imprimir Selecionados */}
+                        {selectedLabels.size > 0 && (
+                            <div className="px-2 py-2 border-t border-gray-200 dark:border-neutral-700 bg-shopee-primary/5">
+                                <button
+                                    onClick={() => {
+                                        // Atualizar preview com selecionados
+                                        setSelectedFromTable(null);
+                                        setSearchResult(null);
+                                        setActiveTab('buscar');
+                                        handlePrint();
+                                    }}
+                                    className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer text-sm"
+                                >
+                                    <Printer className="w-4 h-4" /> Imprimir {selectedLabels.size} Selecionado(s)
+                                </button>
+                            </div>
+                        )}
 
                         {/* Paginação Compacta */}
                         {tableTotalPages > 1 && (
@@ -1146,10 +1371,21 @@ export default function FifoPage() {
 
                     {/* Single Label Preview - Apenas se NÃO estiver em 'vincular' */}
                     {/* Preview da Tabela Espelho */}
-                    {selectedFromTable && !searchResult && activeTab !== 'lote' && activeTab !== 'gerar' && activeTab !== 'vincular' && (
+                    {selectedFromTable && !searchResult && selectedLabels.size === 0 && activeTab !== 'lote' && activeTab !== 'gerar' && activeTab !== 'vincular' && (
                         <div>
                             <div className="text-center text-sm text-gray-500 mb-2 print:hidden">Clique para visualizar</div>
                             <FifoLabel data={selectedFromTable} printDateTime={printDateTime} />
+                        </div>
+                    )}
+
+                    {/* Selected Labels Preview - Múltiplas do espelho */}
+                    {selectedLabels.size > 0 && (
+                        <div className="space-y-4 print:space-y-0">
+                            {getSelectedLabelsData().map((label, idx) => (
+                                <div key={label.qrcode} className={idx < selectedLabels.size - 1 ? 'print:break-after-page' : ''}>
+                                    <FifoLabel data={label} printDateTime={printDateTime} />
+                                </div>
+                            ))}
                         </div>
                     )}
 
@@ -1198,6 +1434,75 @@ export default function FifoPage() {
                     )}
                 </div>
             </div>
+
+            {/* Modal de Edição de Vínculos */}
+            {editingLabel && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 print:hidden">
+                    <div className="bg-white dark:bg-neutral-800 rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+                                Editar Vínculos
+                            </h3>
+                            <button
+                                onClick={() => setEditingLabel(null)}
+                                className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="text-center p-3 bg-gray-50 dark:bg-neutral-700 rounded-lg">
+                                <span className="font-mono font-bold text-xl text-shopee-primary">
+                                    {editingLabel.qrcode}
+                                </span>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    ID_UM
+                                </label>
+                                <input
+                                    type="text"
+                                    value={editIdUm}
+                                    onChange={(e) => setEditIdUm(e.target.value)}
+                                    className="w-full p-3 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-shopee-primary outline-none"
+                                    placeholder="Lacre de identificação 1"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    ID_DOIS
+                                </label>
+                                <input
+                                    type="text"
+                                    value={editIdDois}
+                                    onChange={(e) => setEditIdDois(e.target.value)}
+                                    className="w-full p-3 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-shopee-primary outline-none"
+                                    placeholder="Lacre de identificação 2"
+                                />
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={() => setEditingLabel(null)}
+                                    className="flex-1 py-3 border border-gray-300 dark:border-neutral-600 text-gray-700 dark:text-gray-300 rounded-lg font-bold hover:bg-gray-50 dark:hover:bg-neutral-700 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleSaveEdit}
+                                    disabled={saving}
+                                    className="flex-1 py-3 bg-shopee-primary hover:bg-shopee-dark text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                                >
+                                    {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Salvar'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -51,6 +51,7 @@ export type FifoData = {
     id_um: string;       // Coluna B - ID_UM
     id_dois: string;     // Coluna C - ID_DOIS
     serie: string;       // Coluna D - Serie (0001)
+    impresso?: string;   // Coluna E - Impresso (Sim/Não)
 };
 
 /**
@@ -760,4 +761,77 @@ export async function getTaskLabels(tarefaId: string): Promise<{ found: FifoData
         notFound: result.notFound,
         total: lacreIds.length
     };
+}
+
+// ========================
+// HISTÓRICO DE IMPRESSÕES
+// ========================
+
+/**
+ * Marca etiquetas como impressas
+ * @param qrcodes Lista de QRCodes para marcar como impressos
+ */
+export async function markAsPrinted(qrcodes: string[]): Promise<{ success: boolean; marked: number }> {
+    if (qrcodes.length === 0) {
+        return { success: true, marked: 0 };
+    }
+
+    await loadSheet();
+    const sheet = doc.sheetsByTitle['ID_GAIOLA'] || doc.sheetsByTitle['FIFO'] || doc.sheetsByIndex[1];
+    await sheet.loadHeaderRow();
+    const rows = await sheet.getRows();
+
+    let marked = 0;
+    const timestamp = new Date().toLocaleString('pt-BR');
+
+    for (const qrcode of qrcodes) {
+        const row = rows.find((r: any) =>
+            (r.get('QRCode') || r.get(sheet.headerValues[0]) || '').toUpperCase() === qrcode.toUpperCase()
+        );
+
+        if (row) {
+            row.set('Impresso', `Sim - ${timestamp}`);
+            await row.save();
+            marked++;
+        }
+    }
+
+    return { success: true, marked };
+}
+
+/**
+ * Busca histórico de impressões (etiquetas marcadas como impressas)
+ * @param page Página (1-indexed)
+ * @param pageSize Tamanho da página
+ */
+export async function getPrintHistory(page: number = 1, pageSize: number = 50): Promise<{
+    data: FifoData[];
+    total: number;
+    page: number;
+    totalPages: number;
+}> {
+    await loadSheet();
+    const sheet = doc.sheetsByTitle['ID_GAIOLA'] || doc.sheetsByTitle['FIFO'] || doc.sheetsByIndex[1];
+    const rows = await sheet.getRows();
+
+    // Filtrar apenas impressos
+    const printedRows = rows.filter((row: any) => {
+        const impresso = row.get('Impresso') || '';
+        return impresso.toLowerCase().startsWith('sim');
+    });
+
+    const total = printedRows.length;
+    const totalPages = Math.ceil(total / pageSize);
+    const startIdx = (page - 1) * pageSize;
+    const endIdx = startIdx + pageSize;
+
+    const data: FifoData[] = printedRows.slice(startIdx, endIdx).map((row: any) => ({
+        qrcode: row.get('QRCode') || row.get(sheet.headerValues[0]) || '',
+        id_um: row.get('ID_UM') || '',
+        id_dois: row.get('ID_DOIS') || '',
+        serie: row.get('Serie') || row.get('SERIE') || '',
+        impresso: row.get('Impresso') || ''
+    }));
+
+    return { data, total, page, totalPages };
 }
