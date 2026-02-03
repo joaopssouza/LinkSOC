@@ -58,7 +58,7 @@ export default function FifoPage() {
     const [loadingTable, setLoadingTable] = useState(false);
     const [exceeded, setExceeded] = useState(false);
     const [selectedFromTable, setSelectedFromTable] = useState<FifoData | null>(null);
-    const [selectedLabels, setSelectedLabels] = useState<Set<string>>(new Set());
+    const [selectedLabels, setSelectedLabels] = useState<Map<string, FifoData>>(new Map());
     const [selectAll, setSelectAll] = useState(false);
 
     // === BARRA DE PROGRESSO ===
@@ -479,29 +479,39 @@ export default function FifoPage() {
     };
 
     // === SELEÇÃO MÚLTIPLA ===
-    const toggleSelection = (qrcode: string) => {
+    const toggleSelection = (row: FifoData) => {
         setSelectedLabels(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(qrcode)) {
-                newSet.delete(qrcode);
+            const newMap = new Map(prev);
+            if (newMap.has(row.qrcode)) {
+                newMap.delete(row.qrcode);
             } else {
-                newSet.add(qrcode);
+                newMap.set(row.qrcode, row);
             }
-            return newSet;
+            return newMap;
         });
     };
 
     const toggleSelectAll = () => {
         if (selectAll) {
-            setSelectedLabels(new Set());
+            // Desmarcar apenas os da página atual
+            setSelectedLabels(prev => {
+                const newMap = new Map(prev);
+                tableData.forEach(d => newMap.delete(d.qrcode));
+                return newMap;
+            });
         } else {
-            setSelectedLabels(new Set(tableData.map(d => d.qrcode)));
+            // Adicionar todos da página atual
+            setSelectedLabels(prev => {
+                const newMap = new Map(prev);
+                tableData.forEach(d => newMap.set(d.qrcode, d));
+                return newMap;
+            });
         }
         setSelectAll(!selectAll);
     };
 
     const getSelectedLabelsData = (): FifoData[] => {
-        return tableData.filter(d => selectedLabels.has(d.qrcode));
+        return Array.from(selectedLabels.values());
     };
 
     // === EDIÇÃO DE VÍNCULOS ===
@@ -1089,6 +1099,28 @@ export default function FifoPage() {
                                         Dup: {tableStats.duplicates}
                                     </span>
                                 )}
+                                <button
+                                    onClick={() => {
+                                        if (confirm(`Imprimir TODAS as ${tableStats.unique} etiquetas?`)) {
+                                            // Selecionar todas as etiquetas de todas as páginas
+                                            // Primeiro carregar todas, depois imprimir
+                                            fetch(`/api/fifo/table?page=1&pageSize=${tableStats.unique}&t=${Date.now()}`)
+                                                .then(res => res.json())
+                                                .then(json => {
+                                                    if (json.success && json.data) {
+                                                        const allMap = new Map<string, FifoData>();
+                                                        json.data.forEach((d: FifoData) => allMap.set(d.qrcode, d));
+                                                        setSelectedLabels(allMap);
+                                                        alert(`${allMap.size} etiquetas selecionadas para impressão!`);
+                                                    }
+                                                });
+                                        }
+                                    }}
+                                    className="ml-1 bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 rounded font-medium flex items-center gap-1 transition-colors"
+                                    title="Imprimir todas as etiquetas"
+                                >
+                                    <Printer className="w-3 h-3" /> Todos
+                                </button>
                             </div>
                         </div>
 
@@ -1124,7 +1156,7 @@ export default function FifoPage() {
                                                     checked={selectedLabels.has(row.qrcode)}
                                                     onChange={(e) => {
                                                         e.stopPropagation();
-                                                        toggleSelection(row.qrcode);
+                                                        toggleSelection(row);
                                                     }}
                                                     onClick={(e) => e.stopPropagation()}
                                                     className="w-3.5 h-3.5 rounded border-gray-300 text-shopee-primary focus:ring-shopee-primary cursor-pointer"
