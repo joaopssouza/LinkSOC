@@ -124,6 +124,10 @@ export default function FifoPage() {
     const [historyTotal, setHistoryTotal] = useState(0);
     const [loadingHistory, setLoadingHistory] = useState(false);
 
+    // === MODAL IMPRESSÃO TOTAL ===
+    const [showPrintAllModal, setShowPrintAllModal] = useState(false);
+    const [loadingPrintAll, setLoadingPrintAll] = useState(false);
+
     // Tabelas Vincular
     const [unlinkedData, setUnlinkedData] = useState<FifoData[]>([]);
     const [linkedData, setLinkedData] = useState<FifoData[]>([]);
@@ -474,8 +478,74 @@ export default function FifoPage() {
         }
     };
 
-    const handlePrint = () => {
+    const handlePrint = async () => {
+        // Coletar todos os QRCodes que serão impressos
+        const qrcodes: string[] = [];
+
+        // Do espelho selecionados
+        if (selectedLabels.size > 0) {
+            selectedLabels.forEach((_, qr) => qrcodes.push(qr));
+        }
+        // Da busca
+        else if (searchResult) {
+            qrcodes.push(searchResult.qrcode);
+        }
+        // Do item selecionado na tabela
+        else if (selectedFromTable) {
+            qrcodes.push(selectedFromTable.qrcode);
+        }
+        // Do lote
+        else if (activeTab === 'lote' && batchResults.length > 0) {
+            batchResults.forEach(r => qrcodes.push(r.qrcode));
+        }
+        // Das geradas
+        else if (activeTab === 'gerar' && generatedLabels.length > 0) {
+            generatedLabels.forEach(r => qrcodes.push(r.qrcode));
+        }
+        // Das tarefas
+        else if (activeTab === 'reimprimir' && taskLabels.length > 0) {
+            taskLabels.forEach(r => qrcodes.push(r.qrcode));
+        }
+
+        // Registrar no histórico antes de imprimir
+        if (qrcodes.length > 0) {
+            try {
+                await fetch('/api/fifo/print', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ qrcodes })
+                });
+            } catch {
+                console.error('Erro ao registrar impressão no histórico');
+            }
+        }
+
         window.print();
+    };
+
+    // === IMPRESSÃO TOTAL ===
+    const handlePrintAll = async () => {
+        setLoadingPrintAll(true);
+        try {
+            // Carregar TODAS as etiquetas (com e sem vínculos)
+            const res = await fetch(`/api/fifo/list?page=1&pageSize=${tableStats.total}&t=${Date.now()}`);
+            const json = await res.json();
+            if (json.data && json.data.length > 0) {
+                const allMap = new Map<string, FifoData>();
+                json.data.forEach((d: FifoData) => allMap.set(d.qrcode, d));
+                setSelectedLabels(allMap);
+                setShowPrintAllModal(false);
+
+                // Aguardar renderização e imprimir
+                setTimeout(() => {
+                    handlePrint();
+                }, 500);
+            }
+        } catch {
+            alert('Erro ao carregar etiquetas para impressão.');
+        } finally {
+            setLoadingPrintAll(false);
+        }
     };
 
     // === SELEÇÃO MÚLTIPLA ===
@@ -789,23 +859,38 @@ export default function FifoPage() {
                                 </div>
                                 <p className="text-xs text-gray-400">
                                     {generateMode === 'sequential'
-                                        ? 'Preenche os CG disponíveis de CG0001 a CG5000 em ordem'
-                                        : 'Gera CG aleatórios únicos entre 0001 e 5000'}
+                                        ? 'Preenche os CG disponíveis de CG1 a CG5000 em ordem'
+                                        : 'Gera CG aleatórios únicos entre 1 e 5000'}
                                 </p>
 
-                                <div className="flex gap-2">
-                                    <input
-                                        type="number"
-                                        min={1}
-                                        max={100}
-                                        value={generateQty}
-                                        onChange={(e) => setGenerateQty(parseInt(e.target.value) || 1)}
-                                        className="flex-1 p-3 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-shopee-primary outline-none"
-                                    />
-                                    <button onClick={handleGenerate} disabled={generating} className="px-6 bg-shopee-primary hover:bg-shopee-dark text-white rounded-lg font-bold flex items-center gap-2 transition-colors disabled:opacity-50 cursor-pointer">
-                                        {generating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-                                        Gerar
-                                    </button>
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            value={generateQty}
+                                            onChange={(e) => {
+                                                const val = parseInt(e.target.value);
+                                                setGenerateQty(isNaN(val) ? 0 : val);
+                                            }}
+                                            className={`flex-1 p-3 border rounded-lg bg-white dark:bg-neutral-900 focus:ring-2 outline-none ${generateQty > 100
+                                                ? 'border-red-500 text-red-600 focus:ring-red-500 dark:border-red-500 dark:text-red-400'
+                                                : 'border-gray-300 dark:border-neutral-600 focus:ring-shopee-primary'}`}
+                                        />
+                                        <button
+                                            onClick={handleGenerate}
+                                            disabled={generating || generateQty > 100 || generateQty < 1}
+                                            className="px-6 bg-shopee-primary hover:bg-shopee-dark text-white rounded-lg font-bold flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                        >
+                                            {generating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
+                                            Gerar
+                                        </button>
+                                    </div>
+                                    {generateQty > 100 && (
+                                        <p className="text-xs text-red-500 font-bold ml-1">
+                                            ⚠️ Limite máximo de 100 etiquetas por vez.
+                                        </p>
+                                    )}
                                 </div>
                                 {/* Barra de Progresso */}
                                 {generating && (
@@ -1036,7 +1121,6 @@ export default function FifoPage() {
                                             <thead className="bg-gray-50 dark:bg-neutral-700 sticky top-0">
                                                 <tr>
                                                     <th className="px-2 py-1.5 text-left font-semibold">QRCode</th>
-                                                    <th className="px-2 py-1.5 text-left font-semibold">ID_UM</th>
                                                     <th className="px-2 py-1.5 text-left font-semibold">Impresso</th>
                                                 </tr>
                                             </thead>
@@ -1044,7 +1128,6 @@ export default function FifoPage() {
                                                 {historyData.map((row, idx) => (
                                                     <tr key={row.qrcode + idx} className="border-t border-gray-100 dark:border-neutral-700">
                                                         <td className="px-2 py-1 font-mono font-bold">{row.qrcode}</td>
-                                                        <td className="px-2 py-1 truncate max-w-[80px]">{row.id_um || '-'}</td>
                                                         <td className="px-2 py-1 text-xs text-green-600">{row.impresso}</td>
                                                     </tr>
                                                 ))}
@@ -1100,23 +1183,8 @@ export default function FifoPage() {
                                     </span>
                                 )}
                                 <button
-                                    onClick={() => {
-                                        if (confirm(`Imprimir TODAS as ${tableStats.unique} etiquetas?`)) {
-                                            // Selecionar todas as etiquetas de todas as páginas
-                                            // Primeiro carregar todas, depois imprimir
-                                            fetch(`/api/fifo/table?page=1&pageSize=${tableStats.unique}&t=${Date.now()}`)
-                                                .then(res => res.json())
-                                                .then(json => {
-                                                    if (json.success && json.data) {
-                                                        const allMap = new Map<string, FifoData>();
-                                                        json.data.forEach((d: FifoData) => allMap.set(d.qrcode, d));
-                                                        setSelectedLabels(allMap);
-                                                        alert(`${allMap.size} etiquetas selecionadas para impressão!`);
-                                                    }
-                                                });
-                                        }
-                                    }}
-                                    className="ml-1 bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 rounded font-medium flex items-center gap-1 transition-colors"
+                                    onClick={() => setShowPrintAllModal(true)}
+                                    className="ml-1 bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded font-medium flex items-center gap-1 transition-colors"
                                     title="Imprimir todas as etiquetas"
                                 >
                                     <Printer className="w-3 h-3" /> Todos
@@ -1531,6 +1599,56 @@ export default function FifoPage() {
                                     {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Salvar'}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Confirmação - Imprimir Todos */}
+            {showPrintAllModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 print:hidden">
+                    <div className="bg-white dark:bg-neutral-800 rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+                        <div className="flex flex-col items-center mb-4">
+                            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
+                                <AlertTriangle className="w-8 h-8 text-red-500" />
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-800 dark:text-white text-center">
+                                Imprimir TODAS as Etiquetas?
+                            </h3>
+                        </div>
+
+                        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-4 mb-6">
+                            <p className="text-amber-800 dark:text-amber-300 text-sm text-center">
+                                <strong>⚠️ Atenção:</strong> Esta ação irá carregar e imprimir <strong>{tableStats.total}</strong> etiquetas
+                                (com e sem vínculos). O processo pode ser demorado dependendo da quantidade de registros.
+                            </p>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowPrintAllModal(false)}
+                                disabled={loadingPrintAll}
+                                className="flex-1 py-3 border border-gray-300 dark:border-neutral-600 text-gray-700 dark:text-gray-300 rounded-lg font-bold hover:bg-gray-50 dark:hover:bg-neutral-700 transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handlePrintAll}
+                                disabled={loadingPrintAll}
+                                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                                {loadingPrintAll ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        Carregando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Printer className="w-5 h-5" />
+                                        Confirmar Impressão
+                                    </>
+                                )}
+                            </button>
                         </div>
                     </div>
                 </div>

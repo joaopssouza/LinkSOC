@@ -162,13 +162,24 @@ export const MAX_CG_NUMBER = 5000;
  * @param mode 'sequential' ou 'random'
  * @returns Lista de novas etiquetas criadas
  */
+/**
+ * Gera N etiquetas em massa (QRCode + Serie, sem IDs vinculados)
+ * - CG vai de CG1 a CG5000 (sem zeros à esquerda)
+ * - Serie é autoincremento separado (mantém zeros à esquerda conforme padrão)
+ * - Modo 'sequential': preenche os "buracos" na sequência
+ * - Modo 'random': gera CG aleatórios únicos
+ * - GRAVAÇÃO EM LOTE: Usa addRows para evitar sobrecarga na API
+ * @param quantity Quantidade de etiquetas a gerar
+ * @param mode 'sequential' ou 'random'
+ * @returns Lista de novas etiquetas criadas
+ */
 export async function createBatchQRCodes(quantity: number, mode: GenerateMode = 'sequential'): Promise<FifoData[]> {
     if (!process.env.GOOGLE_SHEET_ID) {
         const results: FifoData[] = [];
         for (let i = 1; i <= quantity; i++) {
             const cgNum = mode === 'random' ? Math.floor(Math.random() * MAX_CG_NUMBER) + 1 : i;
             results.push({
-                qrcode: `CG${String(cgNum).padStart(4, '0')}`,
+                qrcode: `CG${cgNum}`, // Sem zeros à esquerda
                 id_um: '',
                 id_dois: '',
                 serie: String(i).padStart(4, '0')
@@ -185,8 +196,19 @@ export async function createBatchQRCodes(quantity: number, mode: GenerateMode = 
     const existingCGs = new Set<number>();
     let maxSerie = 0;
 
+    // Detectar nome da coluna de série
+    let serieHeader = 'Serie'; // Default
+    const possibleHeaders = ['Serie', 'SERIE', 'Série', 'SÉRIE'];
+
+    for (const h of sheet.headerValues) {
+        if (possibleHeaders.includes(h)) {
+            serieHeader = h;
+            break;
+        }
+    }
+
     for (const row of rows) {
-        // Extrair número do CG (ex: CG0045 -> 45)
+        // Extrair número do CG (funciona tanto para CG0045 quanto CG45)
         const qrcode = row.get('QRCode') || row.get(sheet.headerValues[0]) || '';
         const cgMatch = qrcode.match(/CG(\d+)/i);
         if (cgMatch) {
@@ -197,51 +219,53 @@ export async function createBatchQRCodes(quantity: number, mode: GenerateMode = 
         }
 
         // Encontrar maior Serie para autoincremento
-        const serieVal = row.get('Serie') || row.get('SERIE') || '0';
+        const serieVal = row.get(serieHeader) || row.get('Serie') || row.get('SERIE') || '0';
         const serieNum = parseInt(serieVal, 10);
         if (!isNaN(serieNum) && serieNum > maxSerie) {
             maxSerie = serieNum;
         }
     }
 
-    const newRows: FifoData[] = [];
+    const newRowsData: FifoData[] = [];
+    const rowsToAdd: any[] = []; // Array para adição em lote
     let serieCounter = maxSerie; // Serie é autoincremento independente
 
     if (mode === 'sequential') {
-        // Modo Sequencial: preenche os "buracos" na sequência de CG0001 a CG5000
+        // Modo Sequencial: preenche os "buracos" na sequência de 1 a 5000
         let cgNum = 1;
 
-        while (newRows.length < quantity && cgNum <= MAX_CG_NUMBER) {
+        while (newRowsData.length < quantity && cgNum <= MAX_CG_NUMBER) {
             // Se este CG não existe, criar
             if (!existingCGs.has(cgNum)) {
                 serieCounter++;
-                const cgStr = String(cgNum).padStart(4, '0');
+                const cgStr = String(cgNum); // Sem zeros à esquerda
                 const serieStr = String(serieCounter).padStart(4, '0');
                 const qrcode = `CG${cgStr}`;
 
-                await sheet.addRow({
+                // Adiciona à lista de gravação EM LOTE
+                rowsToAdd.push({
                     [sheet.headerValues[0]]: qrcode,
                     'ID_UM': '',
                     'ID_DOIS': '',
-                    'Serie': serieStr
+                    [serieHeader]: serieStr // Usa o header detectado
                 });
 
-                newRows.push({
+                newRowsData.push({
                     qrcode,
                     id_um: '',
                     id_dois: '',
                     serie: serieStr
                 });
 
-                existingCGs.add(cgNum); // Marcar como usado para esta sessão
+                existingCGs.add(cgNum); // Marcar como usado para não repetir na mesma sessão
             }
             cgNum++;
         }
     } else {
-        // Modo Aleatório: gera CG únicos aleatórios entre 0001 e 5000
+        // Modo Aleatório: gera CG únicos aleatórios entre 1 e 5000
         const generated = new Set<number>();
         let attempts = 0;
-        const maxAttempts = quantity * 100; // Evitar loop infinito
+        const maxAttempts = quantity * 200; // Evitar loop infinito
 
         while (generated.size < quantity && attempts < maxAttempts) {
             // Gera número entre 1 e 5000
@@ -253,18 +277,19 @@ export async function createBatchQRCodes(quantity: number, mode: GenerateMode = 
                 existingCGs.add(randomCG); // Marcar como usado
                 serieCounter++;
 
-                const cgStr = String(randomCG).padStart(4, '0');
+                const cgStr = String(randomCG); // Sem zeros à esquerda
                 const serieStr = String(serieCounter).padStart(4, '0');
                 const qrcode = `CG${cgStr}`;
 
-                await sheet.addRow({
+                // Adiciona à lista de gravação EM LOTE
+                rowsToAdd.push({
                     [sheet.headerValues[0]]: qrcode,
                     'ID_UM': '',
                     'ID_DOIS': '',
-                    'Serie': serieStr
+                    [serieHeader]: serieStr // Usa o header detectado
                 });
 
-                newRows.push({
+                newRowsData.push({
                     qrcode,
                     id_um: '',
                     id_dois: '',
@@ -275,14 +300,25 @@ export async function createBatchQRCodes(quantity: number, mode: GenerateMode = 
         }
 
         // Ordena por CG para melhor visualização
-        newRows.sort((a, b) => {
+        newRowsData.sort((a, b) => {
             const aNum = parseInt(a.qrcode.replace('CG', ''));
             const bNum = parseInt(b.qrcode.replace('CG', ''));
             return aNum - bNum;
         });
     }
 
-    return newRows;
+    // Gravação OTIMIZADA: Grava tudo de uma vez
+    if (rowsToAdd.length > 0) {
+        try {
+            await sheet.addRows(rowsToAdd);
+        } catch (error) {
+            console.error('Erro ao gravar linhas em lote:', error);
+            // Em caso de erro crítico na gravação em lote, poderíamos tentar fallback ou lançar erro
+            throw new Error('Falha ao gravar etiquetas no Google Sheets.');
+        }
+    }
+
+    return newRowsData;
 }
 
 /**
@@ -768,7 +804,7 @@ export async function getTaskLabels(tarefaId: string): Promise<{ found: FifoData
 // ========================
 
 /**
- * Marca etiquetas como impressas
+ * Marca etiquetas como impressas, incrementando contador
  * @param qrcodes Lista de QRCodes para marcar como impressos
  */
 export async function markAsPrinted(qrcodes: string[]): Promise<{ success: boolean; marked: number }> {
@@ -790,7 +826,20 @@ export async function markAsPrinted(qrcodes: string[]): Promise<{ success: boole
         );
 
         if (row) {
-            row.set('Impresso', `Sim - ${timestamp}`);
+            // Extrair contador atual
+            const currentValue = row.get('Impresso') || '';
+            let count = 1;
+
+            // Verificar se já tem contador (formato: "X vez(es) - última: DD/MM/YYYY HH:mm:ss")
+            const match = currentValue.match(/^(\d+)\s*vez/);
+            if (match) {
+                count = parseInt(match[1], 10) + 1;
+            } else if (currentValue.toLowerCase().includes('sim')) {
+                count = 2; // Já foi impresso uma vez antes
+            }
+
+            const vezStr = count === 1 ? 'vez' : 'vezes';
+            row.set('Impresso', `${count} ${vezStr} - última: ${timestamp}`);
             await row.save();
             marked++;
         }
@@ -814,10 +863,10 @@ export async function getPrintHistory(page: number = 1, pageSize: number = 50): 
     const sheet = doc.sheetsByTitle['ID_GAIOLA'] || doc.sheetsByTitle['FIFO'] || doc.sheetsByIndex[1];
     const rows = await sheet.getRows();
 
-    // Filtrar apenas impressos
+    // Filtrar apenas impressos (qualquer valor não vazio na coluna Impresso)
     const printedRows = rows.filter((row: any) => {
         const impresso = row.get('Impresso') || '';
-        return impresso.toLowerCase().startsWith('sim');
+        return impresso.trim() !== '';
     });
 
     const total = printedRows.length;
