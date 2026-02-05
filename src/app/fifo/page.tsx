@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { ArrowLeft, Search, Printer, Loader2, Plus, Link2, Package, RefreshCw, ChevronLeft, ChevronRight, Trash2, Lock, AlertTriangle, RotateCcw, X, Edit2, History } from 'lucide-react';
+import { ArrowLeft, Search, Printer, Loader2, Plus, Link2, Package, RefreshCw, ChevronLeft, ChevronRight, Trash2, Lock, AlertTriangle, RotateCcw, X, Edit2, History, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { LabelWrapper } from '@/components/LabelAssets';
 
@@ -1021,6 +1021,21 @@ export default function FifoPage() {
                                     </button>
                                 </div>
                                 <p className="text-sm text-gray-500">Selecione uma tarefa para ver as etiquetas</p>
+
+                                <a
+                                    href="https://www.appsheet.com/newshortcut/4428a6e7-9e1e-474b-9022-6614729f7a3d"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block w-full p-3 my-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg shadow-sm border border-blue-800 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-3 group"
+                                >
+                                    <div className="p-2 bg-white/20 rounded-full group-hover:bg-white/30 transition-colors">
+                                        <ExternalLink className="w-5 h-5 text-white" />
+                                    </div>
+                                    <div className="flex flex-col items-start leading-tight">
+                                        <span className="font-bold text-sm">Abrir App de Gestão de Gaiolas</span>
+                                        <span className="text-[11px] opacity-90 font-medium">Vincular ID_UM e DOIS (AppSheet)</span>
+                                    </div>
+                                </a>
 
                                 {loadingTasks ? (
                                     <div className="flex items-center justify-center py-8">
