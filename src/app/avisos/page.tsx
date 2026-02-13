@@ -19,6 +19,11 @@ const AVAILABLE_LABELS = [
         src: '/assets/etiquetas/descarte_liquido.png'
     },
     {
+        id: 'porcelana',
+        title: 'PORCELANA (DESCARTE)',
+        src: '/assets/etiquetas/descarte_porcelana.png'
+    },
+    {
         id: 'alimento',
         title: 'ALIMENTO (DESCARTE)',
         src: '/assets/etiquetas/descarte_alimento.png'
@@ -37,6 +42,11 @@ const AVAILABLE_LABELS = [
         id: 'solido',
         title: 'SÓLIDO (DESCARTE)',
         src: '/assets/etiquetas/descarte_solido.png'
+    },
+    {
+        id: 'metal',
+        title: 'METAL (DESCARTE)',
+        src: '/assets/etiquetas/descarte_metal.png'
     },
     {
         id: 'tinta',

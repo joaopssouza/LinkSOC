@@ -8,7 +8,10 @@ export default function Home() {
       <header className="mb-12 text-center flex flex-col items-center justify-center">
         <div className="flex items-center gap-3 mb-2">
           <Image src="/icon.png" alt="LinkSOC Logo" width={48} height={48} className="rounded-lg" />
-          <h1 className="text-4xl font-bold text-shopee-primary">LinkSOC</h1>
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-4xl font-bold text-shopee-primary">LinkSOC</h1>
+            <span className="text-xs text-gray-400 dark:text-gray-400 font-medium italic">By: João Paulo S. S.</span>
+          </div>
         </div>
         <p className="text-gray-600 dark:text-gray-400">Central de Tratativa Shopee Xpress</p>
       </header>
