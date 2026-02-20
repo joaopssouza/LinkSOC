@@ -24,6 +24,16 @@ const AVAILABLE_LABELS = [
         src: '/assets/etiquetas/descarte_porcelana.png'
     },
     {
+        id: 'inflamavel',
+        title: 'INFLÁMAVEL (CUIDADO)',
+        src: '/assets/etiquetas/cuidado_inflamavel.png'
+    },
+    {
+        id: 'cortante',
+        title: 'CORTANTE (CUIDADO)',
+        src: '/assets/etiquetas/cuidado_cortante.png'
+    },
+    {
         id: 'alimento',
         title: 'ALIMENTO (DESCARTE)',
         src: '/assets/etiquetas/descarte_alimento.png'
