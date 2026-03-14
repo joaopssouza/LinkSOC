@@ -23,6 +23,7 @@ export default function Home() {
           description="Geração rápida de etiquetas para EHA e RTS com seleção de turno."
           icon={<PackageOpen className="w-10 h-10 text-white" />}
           color="bg-shopee-primary"
+          disabled
         />
         <ModuleCard
           href="/fifo"
@@ -50,18 +51,35 @@ export default function Home() {
   );
 }
 
-function ModuleCard({ href, title, description, icon, color }: { href: string, title: string, description: string, icon: React.ReactNode, color: string }) {
+function ModuleCard({ href, title, description, icon, color, disabled = false }: { href: string, title: string, description: string, icon: React.ReactNode, color: string, disabled?: boolean }) {
+  const cardContent = (
+    <div className={`relative bg-white dark:bg-neutral-800 rounded-xl shadow-lg overflow-hidden border border-gray-100 dark:border-neutral-700 h-full transition-all duration-300 ${disabled ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:shadow-xl group-hover:scale-[1.01]'}`}>
+      {disabled && (
+        <div className="absolute top-3 right-3 z-10 bg-red-500 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shadow-md">
+          Desativado
+        </div>
+      )}
+      <div className={`${color} p-6 flex justify-center items-center`}>
+        {icon}
+      </div>
+      <div className="p-6">
+        <h2 className={`text-xl font-bold mb-2 transition-colors ${disabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-100 group-hover:text-shopee-primary'}`}>{title}</h2>
+        <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed">{description}</p>
+      </div>
+    </div>
+  );
+
+  if (disabled) {
+    return (
+      <div className="block" aria-disabled="true" title="Este módulo está desativado">
+        {cardContent}
+      </div>
+    );
+  }
+
   return (
     <Link href={href} className="block group">
-      <div className="bg-white dark:bg-neutral-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 dark:border-neutral-700 h-full">
-        <div className={`${color} p-6 flex justify-center items-center`}>
-          {icon}
-        </div>
-        <div className="p-6">
-          <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-2 group-hover:text-shopee-primary transition-colors">{title}</h2>
-          <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed">{description}</p>
-        </div>
-      </div>
+      {cardContent}
     </Link>
   );
 }

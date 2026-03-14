@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, Printer, PackageOpen, Clock, Truck } from 'lucide-react';
 import Link from 'next/link';
 import { LabelWrapper } from '@/components/LabelAssets';
@@ -8,7 +9,21 @@ import { LabelWrapper } from '@/components/LabelAssets';
 type LabelType = 'NURSE' | 'PACKING' | 'TICKET';
 type Turno = 'T1' | 'T2' | 'T3';
 
+// Módulo desativado — redireciona para a página inicial
+const MODULE_DISABLED = true;
+
 export default function OperationalLabelsPage() {
+    const router = useRouter();
+
+    useEffect(() => {
+        if (MODULE_DISABLED) {
+            router.replace('/');
+        }
+    }, [router]);
+
+    if (MODULE_DISABLED) {
+        return null;
+    }
     const [activeTab, setActiveTab] = useState<LabelType>('NURSE');
 
     // Nurse State

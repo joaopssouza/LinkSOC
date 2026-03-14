@@ -125,13 +125,13 @@ export default function RegrasPage() {
         }
     };
 
-    const getTooltipText = (fluxo: string) => {
-        const lower = fluxo?.toLowerCase() || '';
-        if (lower.includes('online')) return 'Seguir para esteira.';
-        if (lower.includes('offline')) return 'Seguir para salvados.';
-        if (lower.includes('quarentena')) return 'Separar o produto.';
-        return 'Consulte o líder.';
-    };
+    // const getTooltipText = (fluxo: string) => {
+    //     const lower = fluxo?.toLowerCase() || '';
+    //     if (lower.includes('online')) return 'Seguir para esteira.';
+    //     if (lower.includes('offline')) return 'Seguir para salvados.';
+    //     if (lower.includes('quarentena')) return 'Separar o produto.';
+    //     return 'Consulte o líder.';
+    // };
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 p-8 font-sans">
@@ -191,17 +191,10 @@ export default function RegrasPage() {
                                             </div>
                                         </td>
                                         <td className="p-4 align-top">
-                                            <div className="relative group inline-block">
-                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border cursor-help ${getColorClasses(r.Cor, r.Fluxo).replace('bg-', 'bg-opacity-20 ')}`}>
-                                                    {getIcon(r.Cor, r.Fluxo)}
-                                                    {r.Fluxo}
-                                                </span>
-                                                {/* Custom Tooltip */}
-                                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-max px-3 py-2 bg-gray-900 text-white text-xs font-bold rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 transform group-hover:-translate-y-1">
-                                                    {getTooltipText(r.Fluxo)}
-                                                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-gray-900"></div>
-                                                </div>
-                                            </div>
+                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${getColorClasses(r.Cor, r.Fluxo).replace('bg-', 'bg-opacity-20 ')}`}>
+                                                {getIcon(r.Cor, r.Fluxo)}
+                                                {r.Fluxo}
+                                            </span>
                                         </td>
                                         <td className="p-4 align-top text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
                                             {r.Significado}
