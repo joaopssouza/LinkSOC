@@ -70,8 +70,8 @@ const AVAILABLE_LABELS = [
     },
     {
         id: 'racao',
-        title: 'RAÇÃO (DOAÇÃO)',
-        src: '/assets/etiquetas/doacao_racao.png'
+        title: 'RAÇÃO (DESCARTE)',
+        src: '/assets/etiquetas/descarte_racao.png'
     },
 ];
 
