@@ -1,18 +1,38 @@
 import Image from 'next/image';
 
 interface LabelWrapperProps {
-    orientation: 'landscape' | 'portrait';
+    orientation?: 'landscape' | 'portrait';
+    size?: '150x100' | '100x150' | '100x75' | '75x100';
     children: React.ReactNode;
     bgType?: 'default' | 'qrcode';
 }
 
-export const LabelWrapper = ({ orientation, children, bgType = 'default' }: LabelWrapperProps) => {
-    const isLandscape = orientation === 'landscape';
+export const LabelWrapper = ({ orientation, size, children, bgType = 'default' }: LabelWrapperProps) => {
+    // Determinar tamanho efetivo
+    let effSize = size;
+    if (!effSize) {
+        effSize = orientation === 'portrait' ? '100x150' : '150x100';
+    }
 
-    // Landscape: 150mm x 100mm -> approx 567px x 378px
-    // Portrait: 100mm x 150mm -> approx 378px x 567px
-    const width = isLandscape ? '567px' : '378px';
-    const height = isLandscape ? '378px' : '567px';
+    const isLandscape = effSize === '150x100' || effSize === '100x75';
+
+    let width = '567px';
+    let height = '378px';
+    let printSize = '150mm 100mm';
+
+    if (effSize === '100x150') {
+        width = '378px';
+        height = '567px';
+        printSize = '100mm 150mm';
+    } else if (effSize === '75x100') {
+        width = '283px';
+        height = '378px';
+        printSize = '75mm 100mm';
+    } else if (effSize === '100x75') {
+        width = '378px';
+        height = '283px';
+        printSize = '100mm 75mm';
+    }
 
     // Selecionar background baseado no tipo
     let bgImage: string;
@@ -38,7 +58,7 @@ export const LabelWrapper = ({ orientation, children, bgType = 'default' }: Labe
                     src={bgImage}
                     alt="Label Background"
                     fill
-                    className="object-cover"
+                    className="object-fill"
                     priority
                 />
             </div>
@@ -51,7 +71,7 @@ export const LabelWrapper = ({ orientation, children, bgType = 'default' }: Labe
             <style jsx global>{`
                 @media print {
                   @page {
-                    size: ${isLandscape ? '150mm 100mm' : '100mm 150mm'};
+                    size: ${printSize};
                     margin: 0;
                   }
                   /* Force background printing */
