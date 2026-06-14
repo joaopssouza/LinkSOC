@@ -14,6 +14,11 @@ const AVAILABLE_LABELS = [
         src: '/assets/etiquetas/cuidado_fragil.png'
     },
     {
+        id: 'liquido_cuidado',
+        title: 'LÍQUIDO (CUIDADO)',
+        src: '/assets/etiquetas/cuidado_liquido.png'
+    },
+    {
         id: 'liquido',
         title: 'LÍQUIDO (DESCARTE)',
         src: '/assets/etiquetas/descarte_liquido.png'
