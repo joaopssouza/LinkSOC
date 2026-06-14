@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeft, Printer } from 'lucide-react';
+import { ArrowLeft, Printer, FileText, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 // Using standard img for print reliability instead of next/image
 // import Image from 'next/image';
@@ -103,8 +103,9 @@ export default function AvisosPage() {
 
             <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-8">
 
-                {/* Controls */}
-                <div className="bg-white dark:bg-neutral-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-700 h-fit print:hidden">
+                <div className="flex flex-col gap-6">
+                    {/* Controls */}
+                    <div className="bg-white dark:bg-neutral-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-700 h-fit print:hidden">
                     <h2 className="text-lg font-semibold mb-6 text-shopee-primary">Configuração</h2>
 
                     <div className="mb-6">
@@ -139,8 +140,41 @@ export default function AvisosPage() {
                     </div>
                 </div>
 
-                {/* Preview Area (Visible on Screen) */}
-                <div className="flex justify-center items-start lg:items-center bg-gray-200 dark:bg-neutral-900 rounded-xl min-h-[600px] print:hidden">
+                {/* Box de Avarias */}
+                <div className="bg-white dark:bg-neutral-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-700 h-fit print:hidden">
+                    <h2 className="text-lg font-semibold mb-6 text-shopee-primary">Material de Apoio (Avarias)</h2>
+                    <div className="flex flex-col gap-4">
+                        <a 
+                            href="/assets/Identificacao - tambores de avarias.pdf" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="w-full bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-400 py-3 px-4 rounded-lg font-medium flex items-center justify-between transition-colors border border-blue-200 dark:border-blue-800/50"
+                        >
+                            <span className="flex items-center gap-2">
+                                <FileText className="w-5 h-5" />
+                                <span>Identificação de Tambores</span>
+                            </span>
+                            <ExternalLink className="w-4 h-4" />
+                        </a>
+
+                        <a 
+                            href="https://docs.google.com/spreadsheets/d/1aQp-VoMvJ9Vltcmx0DfjOuf60-KePvThwf5jNYBpa7U/edit?gid=316670796#gid=316670796" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="w-full bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 text-green-700 dark:text-green-400 py-3 px-4 rounded-lg font-medium flex items-center justify-between transition-colors border border-green-200 dark:border-green-800/50"
+                        >
+                            <span className="flex items-center gap-2">
+                                <ExternalLink className="w-5 h-5" />
+                                <span>Consulta Tipos de Avarias</span>
+                            </span>
+                            <ExternalLink className="w-4 h-4" />
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            {/* Preview Area (Visible on Screen) */}
+            <div className="flex justify-center items-start lg:items-center bg-gray-200 dark:bg-neutral-900 rounded-xl min-h-[600px] print:hidden">
                     <div className="relative bg-white shadow-2xl transition-all mt-8 lg:mt-0"
                         style={{
                             width: '378px', // approx 100mm @ 96dpi

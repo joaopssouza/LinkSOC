@@ -18,7 +18,145 @@ export async function loadSheet() {
 }
 
 // ========================
-// REGRAS DE FLUXO
+// APP CONFIG
+// ========================
+
+export type AppConfig = {
+    modules: {
+        fifo: { enabled: boolean };
+        norse: { enabled: boolean };
+        recebimento: { enabled: boolean };
+        regras: { enabled: boolean };
+    };
+};
+
+const DEFAULT_APP_CONFIG: AppConfig = {
+    modules: {
+        fifo: { enabled: true },
+        norse: { enabled: false },
+        recebimento: { enabled: true },
+        regras: { enabled: true }
+    }
+};
+
+const APP_CONFIG_KEYS = {
+    fifoEnabled: 'module.fifo.enabled',
+    norseEnabled: 'module.norse.enabled',
+    recebimentoEnabled: 'module.recebimento.enabled',
+    regrasEnabled: 'module.regras.enabled'
+} as const;
+
+const APP_CONFIG_KEY_LIST = new Set<string>(Object.values(APP_CONFIG_KEYS));
+
+const cloneDefaultConfig = (): AppConfig => ({
+    modules: {
+        fifo: { enabled: DEFAULT_APP_CONFIG.modules.fifo.enabled },
+        norse: { enabled: DEFAULT_APP_CONFIG.modules.norse.enabled },
+        recebimento: { enabled: DEFAULT_APP_CONFIG.modules.recebimento.enabled },
+        regras: { enabled: DEFAULT_APP_CONFIG.modules.regras.enabled }
+    }
+});
+
+const parseBoolean = (value: string | undefined, fallback: boolean): boolean => {
+    if (value === undefined) return fallback;
+    const normalized = value.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'sim', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'nao', 'off'].includes(normalized)) return false;
+    return fallback;
+};
+
+const buildConfigFromEntries = (entries: Map<string, string>, baseConfig: AppConfig): AppConfig => ({
+    modules: {
+        fifo: {
+            enabled: parseBoolean(entries.get(APP_CONFIG_KEYS.fifoEnabled), baseConfig.modules.fifo.enabled)
+        },
+        norse: {
+            enabled: parseBoolean(entries.get(APP_CONFIG_KEYS.norseEnabled), baseConfig.modules.norse.enabled)
+        },
+        recebimento: {
+            enabled: parseBoolean(entries.get(APP_CONFIG_KEYS.recebimentoEnabled), baseConfig.modules.recebimento.enabled)
+        },
+        regras: {
+            enabled: parseBoolean(entries.get(APP_CONFIG_KEYS.regrasEnabled), baseConfig.modules.regras.enabled)
+        }
+    }
+});
+
+export async function getAppConfig(): Promise<AppConfig> {
+    if (!process.env.GOOGLE_SHEET_ID) {
+        return cloneDefaultConfig();
+    }
+
+    try {
+        await loadSheet();
+        const sheet = doc.sheetsByTitle['APP_CONFIG'];
+
+        if (!sheet) {
+            return cloneDefaultConfig();
+        }
+
+        const rows = await sheet.getRows();
+        const entries = new Map<string, string>();
+
+        rows.forEach((row: any) => {
+            const key = String(row.get('KEY') || '').trim();
+            if (!key) return;
+            const value = String(row.get('VALUE') || '').trim();
+            entries.set(key, value);
+        });
+
+        return buildConfigFromEntries(entries, cloneDefaultConfig());
+    } catch (error) {
+        console.error('Erro ao carregar config do app:', error);
+        return cloneDefaultConfig();
+    }
+}
+
+export async function updateAppConfigEntries(entries: Record<string, boolean | string>): Promise<AppConfig> {
+    const sanitizedEntries: Record<string, string> = {};
+
+    Object.entries(entries).forEach(([key, value]) => {
+        if (!APP_CONFIG_KEY_LIST.has(key)) return;
+        sanitizedEntries[key] = typeof value === 'boolean' ? (value ? 'true' : 'false') : String(value);
+    });
+
+    if (Object.keys(sanitizedEntries).length === 0) {
+        return getAppConfig();
+    }
+
+    if (!process.env.GOOGLE_SHEET_ID) {
+        const entriesMap = new Map<string, string>(Object.entries(sanitizedEntries));
+        return buildConfigFromEntries(entriesMap, cloneDefaultConfig());
+    }
+
+    try {
+        await loadSheet();
+        let sheet = doc.sheetsByTitle['APP_CONFIG'];
+
+        if (!sheet) {
+            sheet = await doc.addSheet({ title: 'APP_CONFIG', headerValues: ['KEY', 'VALUE'] });
+        }
+
+        const rows = await sheet.getRows();
+
+        for (const [key, value] of Object.entries(sanitizedEntries)) {
+            const row = rows.find((r: any) => String(r.get('KEY') || '').trim() === key);
+            if (row) {
+                row.set('VALUE', value);
+                await row.save();
+            } else {
+                await sheet.addRow({ KEY: key, VALUE: value });
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao salvar config do app:', error);
+    }
+
+    return getAppConfig();
+}
+
+// ========================
+// STATUS DE PACOTES
 // ========================
 
 export type Regra = {
@@ -522,6 +660,42 @@ export async function getFifoByUniqueId(uniqueId: string) {
 
 export const MAX_QRCODES = 5000;
 
+// ========================
+// AUTENTICAÇÃO ADMIN
+// ========================
+
+/**
+ * Valida a senha de acesso ao painel administrativo
+ * Busca na planilha ADMIN_AUTH, coluna PASSWORD
+ */
+export async function validateAdminPassword(password: string): Promise<boolean> {
+    if (!process.env.GOOGLE_SHEET_ID) {
+        return password === 'admin';
+    }
+
+    try {
+        await loadSheet();
+        const sheet = doc.sheetsByTitle['ADMIN_AUTH'];
+
+        if (!sheet) {
+            console.error('Planilha ADMIN_AUTH não encontrada');
+            return false;
+        }
+
+        const rows = await sheet.getRows();
+
+        const validPassword = rows.some((row: any) => {
+            const storedPassword = row.get('PASSWORD') || '';
+            return storedPassword === password;
+        });
+
+        return validPassword;
+    } catch (error) {
+        console.error('Erro ao validar senha ADMIN:', error);
+        return false;
+    }
+}
+
 /**
  * Valida a senha de acesso ao módulo FIFO
  * Busca na planilha FIFO_AUTH, coluna PASSWORD
@@ -552,6 +726,43 @@ export async function validateFifoPassword(password: string): Promise<boolean> {
         return validPassword;
     } catch (error) {
         console.error('Erro ao validar senha FIFO:', error);
+        return false;
+    }
+}
+
+/**
+ * Atualiza a senha de acesso ao módulo FIFO
+ * Salva na planilha FIFO_AUTH, coluna PASSWORD
+ */
+export async function updateFifoPassword(newPassword: string): Promise<boolean> {
+    if (!process.env.GOOGLE_SHEET_ID) {
+        return true;
+    }
+
+    try {
+        await loadSheet();
+        let sheet = doc.sheetsByTitle['FIFO_AUTH'];
+
+        if (!sheet) {
+            sheet = await doc.addSheet({ title: 'FIFO_AUTH', headerValues: ['PASSWORD'] });
+        }
+
+        const rows = await sheet.getRows();
+
+        if (rows.length > 0) {
+            // Atualiza a primeira linha existente
+            rows[0].set('PASSWORD', newPassword);
+            await rows[0].save();
+            
+            // Se houver mais de uma linha, podemos apagar as extras para manter limpo, mas não é estritamente necessário.
+            // Para garantir, vamos apenas garantir que a primeira linha é a que vale.
+        } else {
+            await sheet.addRow({ PASSWORD: newPassword });
+        }
+
+        return true;
+    } catch (error) {
+        console.error('Erro ao atualizar senha FIFO:', error);
         return false;
     }
 }

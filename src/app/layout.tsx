@@ -44,7 +44,7 @@ export default function RootLayout({
         <footer className="py-8 text-center text-sm text-gray-400 dark:text-gray-600 print:hidden">
           <p>
             LinkSOC &copy; {new Date().getFullYear()} &bull; Criado por{' '}
-            <a href="/suporte" className="hover:text-shopee-primary transition-colors font-medium">
+            <a href="/suporte" className="text-shopee-primary font-semibold hover:opacity-90 transition-colors">
               João Paulo S. S.
             </a>
           </p>

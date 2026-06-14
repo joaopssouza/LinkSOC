@@ -1,15 +1,15 @@
 import { notFound } from 'next/navigation';
 import { getAppConfig } from '@/lib/googleSheets';
-import RegrasClient from './RegrasClient';
+import RecebimentoClient from './RecebimentoClient';
 
 export const dynamic = 'force-dynamic';
 
-export default async function RegrasPage() {
+export default async function RecebimentoPage() {
     const config = await getAppConfig();
 
-    if (!config.modules.regras.enabled) {
+    if (!config.modules.recebimento.enabled) {
         notFound();
     }
 
-    return <RegrasClient />;
+    return <RecebimentoClient />;
 }
