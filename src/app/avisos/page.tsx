@@ -64,6 +64,11 @@ const AVAILABLE_LABELS = [
         src: '/assets/etiquetas/descarte_metal.png'
     },
     {
+        id: 'metal_cuidado',
+        title: 'METAL',
+        src: '/assets/etiquetas/cuidado_metal.png'
+    },
+    {
         id: 'tinta',
         title: 'TINTA (DESCARTE)',
         src: '/assets/etiquetas/descarte_tinta.png'
